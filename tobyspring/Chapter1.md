@@ -52,5 +52,43 @@ getConnection() 메서드를 추상 메서드로 변경하면 DAO를 상속한 N
 위의 예제에서는 DAO의 서브 클래스인 NDAO, DDAO가 팩토리 역할을 하여 각각 다른 DB connection을 생성하고 있다.  
 이 방법을 통해 객체 생성은 팩토리에게만 의존하기 때문에 클라이언트 입장에서는 구체화된 객체에 의존할 필요가 없다.  
 
+## 1.3 DAO의 확장
+### 요약
+이번 장에서는 상속이 아닌 connection 맺는 부분을 클래스로 분리하여 문제를 해결하고자 한다.  
+SimpleConnectionMaker는 클래스를 만들고 makeNewConnection()이라는 함수를 구현한다.  
+UserDao가 이 SimpleConnection을 필드로 가지고 이 객체를 통해서 connection을 가져온다.  
+
+클래스의 분리를 통해 역할을 분리했지만 생성자에서 SimpleConnection 구현체를 생성하고 필드에 넣어주기 때문에  
+UserDao가 특정 ConnectionMaker에 종속적이다. 이러한 경우 인터페이스를 통해 해결할 수 있다.  
+ConnectionMaker를 Interface로 만들고 이를 N사와 D사에서 각각 구현한 ConnectionMaker를 사용하면 변화에 유연하게 대처할 수 있다.  
+
+하지만 여기서도 UserDao는 특정 ConnectionMaker에 의존을 하게 된다.  
+이 문제는 UserDao 외부 즉, 클라이언트에서 어떤 ConnectionMaker를 사용할건지를 결정할 수 있도록 넘기면 해결 된다.  
+예제에서는 main() 메소드에서 UserDao를 호출하고 있는데 자바는 다형성을 지원하기 때문에 UserDao 객체를 생성할 때 클라이언트에서  
+ConnectionMaker의 구현체를 생성자로 넣어주면 UserDao는 ConnectionMaker라는 추상에만 의존하고 실제 구현은 외부에서 결정하게 된다.  
+
+
+### 용어
+`개방 폐쇄의 원칙` : 개방 폐쇄의 원칙을 통해 지금까지 해온 리팩토링 작업을 효과적으로 설명할 수 있다.  
+개방 페쇄의 원칙은 `클래스나 모듈의 확장에는 열려 있어야하고 변경에는 닫혀있어야 한다`이다.  
+위의 에제에서는 DB 연결 방법을 확장하는데는 열려있으나 UserDao를 변경하지 않아도 되므로 변경에는 닫혀있다.
+
+`객체 지향의 원칙 SOLID`  
+`SRP`(The Single Responsibility Principle) : 단일 책임 원칙  
+`OCP`(The Open Closed Principle) : 개방 폐쇄 원칙  
+`LSP`(The Liskov Substitution Principle) : 리스코프 치환 원칙  
+`ISP`(The Interface Segregation Principle) : 인터페이스 분리 원칙  
+`DIP`(The Dependency Inversion Principle) : 의존 관계 역전 원칙  
+
+`응집도` : 응집도가 높다는 것은 하나의 모듈, 클래스가 하나의 책임 또는 관심사에만 집중되어 있다는 것이다.  
+변화가 생기면 해당 모듈에서의 변화가 크고 다른 곳에서의 변화가 작다. 그렇기 때문에 변화가 일어나도 어디를 수정해야되는지 파악하기 쉽고  
+다른 곳에 영향을 끼칠 확률도 적어진다.  
+`결합도` : 결합도는 책임과 관심사가 다른 오브젝트 또는 모듈과 느슨한 관계를 유지하는 것을 말한다.  
+변화가 필요할 때 하나를 수정함으로 인해 여러 곳이 변경되면 결합도가 높다. 이러한 상황을 지양해야 한다.  
+
+`전략 패턴` : 전략 패턴은 자신의 기능 맥락에서 필요에 따라 변경이 필요한 알고리즘을 인터페이스를 통해 통째로 외부로 분리시키고,  
+이를 구현한 구체적인 알고리즘을 필요에 따라 바꿔서 사용할 수 있게 하는 패턴이다.  
+이 패턴을 통해 개방 폐쇄의 원칙을 지킬 수 있었다.  
+
 
 
