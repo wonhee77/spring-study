@@ -119,3 +119,51 @@ ConnectionMaker는 읽기만 하니 하나를 만들어서 동시에 모두가 �
 
 IOC 모델을 통해 설계가 깔끔해지고, 유연성과 확장성이 증가시킬 수 있다.  
 
+
+## 1.5 스프링의 IOC
+
+###요약
+앞서 만든 DaoFactory를 스프링이 직접 관리하는 하도록 만들 수 있다.  
+스프링에서는 스프링이 제어권을 가지고 직접 만들고 관계를 부여하는 오브젝트를 빈이라고 부른다.  
+그리고 빈의 생성과 관계 설정을 관리하는 IOC 오브젝트를 빈 팩토리라고 부른다. 보통은 빈팩토리보다 이를 조금 더 확장한 어플리케이션 컨텍스트를 사용한다.  
+빈팩토리는 빈을 생성하고 관계를 형성하는 IOC의 기본적인 기능에 초점을 맞춘 것이고, 어플리케이션 컨텍스트는 IOC 엔진 의미가 더 부각된다.  
+
+DaoFactory 클래스에 @Configuration 어노테이션을 붙이고, UserDao를 생성하는 메소드와 ConnectionMaker를 생성하는 메소드에  
+@Bean 어노테이션을 붙여주면 DaoFactory가 스프링에서 IOC 기능을 사용할 설정 정보가 된다.  
+
+@Configuration이 붙은 자바 코드를 설정정보로 사용하려면 ApplicationContext를 구현한 AnnotationConfigApplicationContext를 사용하면 된다.  
+ApplicationContext의 getBean()이라는 메소드를 통해 등록한 빈을 가져올 수 있다.  
+```java
+    ApplicationContext context = new AnnotationConfigApplicationContext(DaoFactory.class);
+    UserDao dao = context.getBean("userDao", UserDao.class);
+```
+Config 파일에서 @Bean 어노테이션을 붙여준 함수가 bean의 이름이 된다.  
+bean을 가져올 때 이름으로만 가져오면 Object type으로 반환하기 때문에 두번째 인자로 Class에 대한 정보를 넘겨 제네릭으로 원하는 타입의 빈을 바로 가져올 수 있다.  
+
+어플리케이션 컨텍스트를 통해 얻을 수 있는 장점
+- 클라이언트는 구체적인 팩토리 클래스를 알 필요가 없다.  
+  DaoFactory는 IOC를 적용한 오브젝트를 가져오기 위해서라면 어떤 팩토리를 사용해야될지를 알아야 하고, 필요할 때 마다 팩토리를 생성해야 된다.  
+  하지만 어플리케이션 컨텍스트를 사용하면 일관된 방법으로 오브젝트를 가져올 수 있고, XML을 설정 정보로 사용할 수도 있다.
+  
+- 어플리케이션 컨텍스트는 종합 IOC 서비스를 제공해준다.  
+  어플리케이션 컨텍스트는 단순히 오브젝트 생성, 관계 연결을 해주는 역할 뿐만 아니라 오브젝트가 만들어지는 방식, 시점과 전략을 다르게 가져갈 수도 있고,  
+  자동생성, 오브젝트에 대한 후처리, 정보의 조합, 설정 방식의 다변화, 인터셉팅 등 오브젝트를 효과적으로 활용할 수 있는 다양한 기능을 제공한다.  
+  
+- 어플리케이션 컨텍스트는 빈을 검색하는 다양항 방법을 제공한다.  
+  타입으로 빈을 검색하거나 특별한 어노테이션이 설정되어 있는 빈을 찾을 수도 있다.  
+  
+
+###용어
+`Bean` : 스프링이 IoC 방식으로 관리하는 오브젝트이다.
+
+`Bean Factory` : 스프링의 IoC를 담당하는 핵심 컨테이너. 빈을 등록, 생성, 조회와 부가적인 빈 관리 기능을 제공한다.  
+보통은 기능이 확장된 ApplicationContext 오브젝트를 사용한다.  
+
+`Application Context` : 빈 팩토리를 확장한 IoC 컨테이너이다. 스프링이 제공하는 각종 부가 서비스를 추가로 제공한다.  
+
+`Congfiguration / Metadata` : 어플리케이션 컨텍스트 또는 빈 팩토리가 IoC를 적용하기 위해 사용하는 메타정보이다.
+
+`Container or IoC Container` : IoC 방식으로 빈을 관리한다는 의미에서 빈 팩토리나 어플리케이션 컨텍스트를 IoC 컨테이너라고 부른다.
+
+`Spring Framework` : IoC 컨테이너, 어플리케이션 컨텍스트를 포함해서 스프링이 제공하는 모든 기능을 통틀어 말한다.  
+
