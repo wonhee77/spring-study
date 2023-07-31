@@ -247,3 +247,37 @@ IoC 컨테이너 등이 모두 외부에서 오브젝트 사이의 런타임 관
   수정자는 하나의 파라미터 밖에 받을 수 없지만 여러개의 파라미터를 한 번에 받을 때에는 일반 메소드를 통한 주입을 사용할 수도 있다.  
    
 
+## 1.8 XML을 이용한 설정 
+
+### 요약
+XML은 단순한 텍스트 파일이기 때문에 다루기 쉽고, 컴파일을 거치지 않고도 내용을 변경할 수 있다.  
+XML에서는 <beans>를 루트 엘리먼트로 사용하고 <bean>을 통해 빈으로 등록할 수 있다.  
+```java
+    @Bean                               // -> <bean
+    public ConnectionMaker
+    connectionMaker() {                 // id="connectionMaker"
+        return new DConnectionMaker();  // class="package..DConnectionMaker"/>
+    }
+```
+```xml
+    <bean id="userDao" class="package...UserDao">
+        <property name="connectionMaker" ref="connectionMaker" /> name은 수정자 이름, ref는 주입받을 빈 id
+    </bean>
+```
+
+XML을 사용하는 어플리케이션 컨텍스트를 사용하려면 GenericXmlApplicationContext를 사용한다.  
+GenericXmlApplicationContext의 생성자로 XML 파일의 클래스 패스를 전달해주면 된다.  
+XML 파일 이름은 관례적으로 applicationContext.xml을 사용한다.  
+
+기존에는 ConnectionMaker를 사용했지만 자바에서는 DB connection을 가져오는 오브젝트의 기능을 추상화해서 비슷한 기능을 가지고 있는  
+DataSource라는 인터페이스가 존재한다. getConnection()이라는 이외에 다양한 부가 기능을 제공한다.  
+DataSource의 구현체인 SimpleDriverDataSource로 기존 코드를 변경한다. DB 연결에 필요한 필수 정보를 받을 수 있는 여러 개의 수정자 메소드가 존재한다.  
+
+수정자 메소드에는 다른 빈이나 오브젝트 뿐만 아니라 단순한 값도 넣어줄 수 있다.  
+자바코드로 빈을 등록할 때는 @Bean 메소드에서 객체를 생성하고 수정자를 통해 DB연결 정보들을 주입할 수 있지만 XML에서는 ref로 값을 주입할 수 없다.  
+XML에서 단순한 값을 주입할 때는 property에 value를 사용하면 된다.
+
+```xml
+  <property name="driverClass" value="com.mysql.jdbc.Driver" />
+```
+value는 단순 string 값이지만 스프링에서는 수정자를 통해 타입을 추론하여 위와 같은 경우는 클래스 타입으로 바꿔준다.
