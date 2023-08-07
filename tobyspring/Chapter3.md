@@ -44,3 +44,34 @@ makePreparedStatement 메소드를 가진 StatementStrategy 인터페이스를 �
 ```
 
 
+## 3.3 JDBC 전략 패턴의 최적화
+
+### 요약
+UserDao의 add() 메소드에는 User라는 부가정보가 필요하다. 따라서 아래와 같이 AddStatement의 생성자로 User 객체를 받도록 변경한다.
+```java
+    public class AddStatement implements StatemetStrategy {
+        User user;
+        public AddStatement(User user) {
+            this.user = user;
+        }
+    }
+```
+
+템플릿 메소드 패턴에서 전략패턴으로 넘어오면서 훨씬 더 깔끔한 코드가 만들어졌지만 지금도 여전히 statementStrategy 구현체 클래스 파일들이 계속 늘어나는 구조이다.
+
+#### 로컬 클래스
+파일이 많아지는 것은 UserDao에서 밖에 사용되지 않기 때문에 UserDao 클래스에 내부클래스로 클래스를 만들어버릴 수 있다.  
+AddStatement 클래스를 add() 메소드 내부에 집어넣으면 AddStatement 클래스는 add() 메소드 내의 변수에 바로 접근할 수 있다. 이때 내부 클래스에서  
+외부의 변수를 사용할 때는 외부 변수는 반드시 final로 선언해야 한다.
+
+#### 익명 내부 클래스
+AddStatement 클래스는 한 번만 사용될 것이기 때문에 굳이 클래스로 선언할 필요 없이 익명클래스로 만들고 jdbcContextWithStatementStrategy 함수에 변수로 직접 전달할 수 있다.
+
+### 용어
+`익명 내부 클래스` : 이름을 갖지 않는 클래스로 재사용할 필요가 없고, 구현한 인터페이스 타입으로만 사용할 경우에 유용하다.   
+내부 클래스에서 외부 변수에 접근하려면 외부 변수는 final이거나 effectively final이어야 한다.  
+외부 변수는 메소드 영역이기 때문에 할일이 끝나면 데이터가 스택에서 다 지워진다. 그래서 값이 변한다거나 할 경우 나중에 실행될 클래스에서 동기화 문제가 생길 수 있다.  
+new 인터페이스이름() { 클래스 본문 };
+
+
+
