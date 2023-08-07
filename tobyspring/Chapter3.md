@@ -74,4 +74,47 @@ AddStatement 클래스는 한 번만 사용될 것이기 때문에 굳이 클래
 new 인터페이스이름() { 클래스 본문 };
 
 
+## 3.4 컨텍스트와 DI
+
+### 요약
+전략패턴의 구조로 보자면 UserDao가 클라이언트이고 익명 내부 클래스가 개별 전략, JdbcContextWithStatementStrategy() 메소드가 컨텍스트이다.  
+JdbcContextWithStatementStrategy()는 다른 Dao에서도 사용할 수 있기 때문에 클래스로 독립시키자.
+
+JdbcContext라는 이름의 클래스를 만들고 DataSource 타입빈을 DI로 받을 수 있도록 수정자를 만든다. 그리고 함수의 이름도 workWithStatementStrategy로 변경하였다.  
+UserDao에서는 JdbcContext를 DI로 받을 수 있도록 수정자를 만들고 add() 와 deleteAll()함수 내부도 jdbcContext.workWithStatementStrategy로 변경한다.
+
+#### 스프링 빈으로 DI
+UserDao에서 JdbcContext는 인터페이스가 아닌 구현체로 DI를 하고 있다.  
+인터페이스를 사용해서 클래스를 자유롭게 변경할 수 있게 하지는 않았지만, JdbcContext를 UserDao와 DI 구조로 만들어야할 이유를 생각해보자.
+
+첫번째, JdbcContext가 스프링 컨테이너의 싱글톤 레지스트리로 관리되는 싱글톤 빈이기 때문이다. JdbcContext는 읽기 전용으로 여러 곳에서 사용해도 문제가 없다.  
+매번 새로 생성하지 않아도 된다.  
+두번째, JdbcContext가 DI를 통해 다른 빈에 의존하고 있기 때문이다. 두번째 이유가 중요하다. JdbcContext는 DataSource 오브젝트를 주입받고 있다.  
+DI를 위해서는 주입되는 오브젝트와 주입받는 오브젝트 양쪽 모두 스프링 빈으로 등록되어야 한다.
+
+JdbcContext는 테스트에서도 바뀔 이유가 없기 때문에 강한 결합을 가진 관계를 허용하면서 싱글톤과 JdbcContext에 대한 DI 필요성을 위해 스프링의 빈으로 등록해서  
+UserDao에 DI 되도록 만들어도 좋다.
+
+#### 코드를 이용하는 수동 DI
+UserDao 내부에서 직접 DI를 적용할 수 있다. 이 방법을 사용하면 싱글톤으로 만드는 것은 포기해야 된다.  
+수동 DI를 사용하면 위에서 본 두번째 이유를 신경써야 한다. DataSource는 스프링에서 관리하는 빈이기 때문에 주입을 할 수 없기 때문이다.  
+이런 경우는 UserDao에서 DI를 맡길 수 있다. UserDao는 DataSource를 직접 필요하지는 않지만 JdbcContext에게 전달하는 용도로만 사용하는 것이다.
+```java
+public class UserDao {
+    private JdbcContext jdbcContext;
+
+    public void setDataSource(DataSource dataSource) {
+        this.jdbcContext = new JdbcContext();
+        this.jdbcContext.setDataSource(dataSource);
+        this.dataSource = dataSource; // 아직 JdbcContext를 적요하지 않는 메소드를 위해 저장해준다.
+    }
+}
+```
+
+JdbcContext와 같이 인터페이스를 사용하지 않고 Dao와 밀접한 관계를 갖는 클래스를 DI에 적용하는 방법 두 가지를 알아봤다.  
+스프링 DI를 하는 방법은 실제 의존관계가 설정 파일에 잘드러나지만 구체적인 관계가 설정에 직접 노출되는 단점이 존재한다.  
+코드를 통해 DI를 하는 방법은 필요에 따라 내부에서 DI를 은밀히 수행할 수 있지만, 싱글톤을 만들 수 없고, DI를 위한 부가적인 코드가 필요하다.  
+나은 방법은 없지만 상황에 따라서 잘 선택을 해야한다.
+
+
 
