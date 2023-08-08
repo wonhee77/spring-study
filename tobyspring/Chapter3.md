@@ -146,4 +146,44 @@ executeSql() 메소드는 UserDao 뿐만 아니라 다른 Dao에서도 사용할
 특정 로직을 담은 메소드를 실행시키기 위해 사용된다. 자바에서는 메소드 자체를 파라미터로 전달할 방법이 없기 때문에 메소드가 담긴 오브젝트를 전달해야 한다.  
 
 
+## 3.6 스프링의 JdbcTemplate
 
+### 요약
+스프링에서는 다양한 템플릿과 콜백을 제공한다. 스프링이 제공하는 JDBC 코드용 기본 템플릿은 JdbcTemplate이다. 앞서 개발한 JdbcContext랑 비슷하지만  
+훨씬 강력하고 편리한 기능을 제공해준다.  
+
+기존의 코드에서 jdbcContext를 jdbcTemplate로 변경한다.
+기존 deleteAll() 메소드에서 사용하던 콜백을 makePreparedStatement() -> createPreparedStatement() 로 바꿀 수 있고,  
+executeSql() 메소드처럼 SQL 문장만 전달하면 콜백을 만들어 실행해주던 것처럼 update()를 사용해서 간단히 바꿀 수 있다.
+
+```java
+    public void deleteAll() {
+        this.jdbcTemplate.update("delete from users")
+    }
+```
+
+add() 메소드는 치환자를 통해 값을 바인딩 해줄 수 있다.
+
+```java
+    this.jdbcTemplate.update("insert into users(id, name, password) values(?,?,?)",
+    user.getId(), user.getName(), user.getPassword());
+```
+
+getCount()는 템플릿 메소드 패턴을 적용하지 않았던 메소드이다. 이 메소드도 JdbcTemplate을 이용해 해결할 수 있다.  
+SQL을 통해 쿼리를 실행하고 ResultSet를 통해 결과 값을 가져오는 흐름에서 사용하는 템플릿은 PreparedStatementCreator 콜백과  
+ResultSetExtractor 콜백을 파라미터로 받는 query() 메소드이다.  
+
+jdbcTemplate에서는 이런 기능을 가진 콜백을 내장하고 있는 queryForInt()라는 편리한 메소드를 제공한다. 
+
+이번엔 get() 메소드에 jdbcTemplate를 적용해보자. getCount()와 비슷하지만 결과가 단순한 값이 아니라 복잡한 User 오브젝트로 만들어야 한다.  
+getCount()에서 사용했던 ResultSetExtractor 콜백 대신 RowMapper 콜백을 사용한다. RowMapper 콜백은 ResultSet의 로우 하나를 매핑하기 위해  
+사용되기 때문에 여러 번 호출될 수 있다.  
+
+queryForObject()를 사용해서 결과를 받아올 수 있다. 첫번째 인자는 PreparedStatement를 만들기 위한 SQL이고 두번재 인자는 여기에 바인딩할 값들이다.  
+
+RowMapper를 사용해서 여러개의 결과를 가져오는 getAll() 메소드도 만들 수 있다.  
+queryForObject()는 하나의 결과만을 가져오기 위한 것이고 query()를 통해 여러 결과를 가져오게 할 수 있다.
+
+get() 메소드와 getAll() 메소드에서 쓰인 RowMapper는 중복이 되므로 UserMapper라는 메소드로 분리해 재사용할 수 있다.  
+
+테스트코드를 작성할 때는 네거티브 테스트부터 만들자.
