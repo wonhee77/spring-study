@@ -340,6 +340,91 @@ new DataSourceTransactionManager라는 구체적인 의존 클래스 정보가 �
 객체 지향 설계 원칙을 잘 지켜서 만든 코드는 테스트하기도 편하다.
 
 
+## 5.4 메일 서비스 추상화
+
+### 요약
+고객으로부터 사용자 레벨 관리에 관한 새로운 요청사항이 들어왔다. 레벨이 업그레이드되는 사용자에게는 안내 메일을 발송해달라는 것이다.  
+안내 메일을 발송하기 위해서는 사용자의 이메일 정보를 관리하고, upgradeLevel() 메소드에 메일 발송 기능을 추가해야 한다.  
+
+자바에서 메일을 발송할 때는 표준 기술인 JavaMail을 사용하면 된다.  
+upgradeLevel()에서 메일 발송 메소드를 호출한다. upgradeLevel() 안에 JavaMail 코드를 직접 넣지 않는 편이 낫다는건 굳이 설명하지 않아도 될 것이다.  
+```java
+    protected void upgradeLevel(User user) {
+        user.upgradeLevel();
+        userDao.update(user);
+        sendUpgradeEmail(user);
+    }
+```
+
+개발 중에는 sendUpgradeEmail() 메소드가 호출되면 에러가 발생한다. 메일을 방송하려는데 메일 서버가 현재 연결 가능하도록 준비되어 있지 않기 때문이다.  
+메일 발송은 부하가 큰 작업이기 때문에 실제 운영 중인 메일서버를 통해 테스트를 실행할 때마다 메일을 보내면 메일 서버에 부담이 된다.  
+
+테스트용 메일 서버를 따로 만들어 테스트 시에 테스트 메일 서버로 전송하는 방법도 있다. JavaMail은 자바의 표준 기술이고 이미 수많은 시스템에 사용돼서 검증된 안정적인 모듈이다.  
+따라서 JavaMail API를 통해 요청이 들어간다는 보장만 있다면 굳이 테스트할 때마다 JavaMail을 직접 구동시킬 필요가 없다.  
+개발 중이거나 테스트를 수행할 때는 JavaMail을 대신할 수 있는, 그러나 JavaMail을 사용할 때와 동일한 인터페이스를 갖는 코드가 동작하도록 만들어도 될 것이다.  
+
+그런데 한가지 심각한 문제가 있다. JavaMail의 API는 이 방법을 적용할 수 없다는 점이다. JavaMail의 핵심 API에는 DataSource처럼 인터페이스로 만들어져서 구현을 바꿀 수 있는게 없다.  
+JavaMail에서는 Session 오브젝트를 만들어야만 메일 메시지를 생성할 수 있고, 메일을 전송할 수 있다. 그런데 이 Session은 인터페이스가 아니고 클래스다.  
+게다가 생성자가 모두 private으로 되어 있어서 직접 생성도 불가능하다. 게다가 Session 클래스는 더 이상 상속이 불가능한 final 클래스다. 도무지 구현을 바꿔치기할 만한  
+인터페이스의 존재가 보이지 않는다.
+
+JavaMail처럼 테스트하기 힘든 구조인 API를 테스트하기 좋게 만드는 방법이 있다. 트랜잭션을 적용하면서 살펴봤던 서비스 추상화를 적용하면 된다.  
+스프링은 JavaMail을 사용해 만든 코드는 손쉽게 테스트하기 힘들다는 문제를 해결하기 위해 JavaMail에 대한 추상화 기능을 제공하고 있다.  
+
+```java
+package org.springframework.mail;
+...
+public interface MailSender {
+    void send(SimpleMailMessage simpleMailMessage) throws MailException;
+    void send(SimpleMailMessage[] simpleMailMessage) throws MailException;
+}
+```
+
+이 인터페이스는 SimpleMailMessage라는 인터페이스를 구현한 클래스에 담긴 메일 메시지를 전송하는 메소드로만 구성되어 있다.  
+기본적으로는 JavaMail을 사용해 메일 발송 기능을 제공하는 JavaMailSenderImpl 클래스를 이용하면 된다.  
+
+스프링의 예외 원칙에 따라서 JavaMail을 처리하는 중에 발생한 각종 예외를 MailException이라는 런타임 예외로 포장해서 던져주기 때문에 try/catch문을 만들지 않아도 된다.  
+
+그렇다면 이제 스프링 DI를 적용할 차례다. sendUpgradeMail() 메소드에는 JavaMailSenderImpl 클래스가 구현한 MailSender 인터페이스만 남기고, 구체적인 메일 전송 구현을  
+담은 클래스의 정보는 코드에서 모두 제거한다. UserService에 MailSender 인터페이스 타입의 변수를 만들고 수정자 메소드를 추가해 DI가 가능하도록 만든다.  
+
+스프링이 제공한 메일 전송 기능에 대한 인터페이스가 있으니 이를 구현해서 테스트용 메일 전송 클래스를 만들어 보자. 구현해야 할 인터페이스는 MailSender이다.  
+DummyMailSender를 실제 메일을 전송할 필요가 없기 때문에 인터페이스만 구현 후 아무것도 하지 않는다.  
+
+스프링이 직접 제공하는 MailSender를 구현한 추상화 클래스는 JavaMailServiceImpl 하나 뿐이다. 
+
+서비스 추상화란 이렇게 원활한 테스트만을 위해서도 충분히 가치가 있다. 기술이나 환경이 바뀔 가능성이 있음에도, JavaMail처럼 확장이 불가능하게 설계해놓은 API를 사용해야 하는  
+경우라면 추상화 계층의 도입을 적극 고려해볼 필요가 있다.  
+
+#### 테스트 대역의 종류와 특징
+테스트 환경을 만들어 주기 위해 테스트 대상이 되는 오브젝트의 기능에만 충실하게 수행하면서 빠르게, 자주 테스트를 실행할 수 있도록 사용하는 이런 오브젝트를 통틀어  
+테스트 대역이라고 부른다. 대표적인 테스트 대역은 테스트 스텁이다.  
+
+테스트 대상 오브젝트의 메소드가 돌려주는 결과뿐 아니라 테스트 오브젝트가 간접적으로 의존 오브젝트에 넘기는 값과 그 행위 자체에 대해서도 검증하고 싶다면 어떻게 할까?  
+이런 경우에는 테스트 대상의 간접적인 출력 결과를 검증하고, 테스트 대상 오브젝트와 의존 오브젝트 사이에서 일어나는 일을 검증할 수 있도록 특별히 설계된 목 오브젝트를 사용해야 한다.  
+
+때론 테스트 대상 오브젝트가 의존 오브젝트에게 출력한 값에 관심이 있을 경우가 있다. 또는 의존 오브젝트를 얼마나 사용했는가 하는 커뮤니케이션 행위 자체에 관심이 있을 수가 있다.  
+이때는 테스트 대상과 의존 오브젝트 사이에 주고받는 정보를 보존해두는 기능을 가진 테스트용 의존 오브텍트인 목 오브젝트를 만들어서 사용해야 한다. 테스트 대상 오브젝트의  
+메소드 호출이 끝나고 나면 테스트는 목 오브젝트에게 테스트 대상과 목 오브젝트 사이에서 일어났던 일에 대해 확인을 요청해서, 그것을 테스트 검증 자료로 삼을 수 있다.  
+
+MockMailSender 스태틱 클래스를 UserService 내부 스태틱 멤버 클래스로 정의한다.  
+메일 send()가 호출되면 request ArrayList에 저장해서 읽을 수 있게 해둔다.
+
+```java
+    static class MockMailSender implements MailSender {
+    private List<String> requests = new ArrayList<>();
+    
+    public List<String> getRequests() {
+        return requests;
+    }
+    
+    public void send(SimpleMailMessage mailMessage) {
+        reqeusts.add(mailMessage.getTo()[0]);
+    }
+}
+```
+
+테스트 코드의 검증하는 부분에서 MockMailSender의 requests를 가져와 요청 내용을 검증할 수 있다.  
 
 
 
