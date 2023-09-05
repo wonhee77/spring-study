@@ -874,5 +874,46 @@ AnnotationTransactionAttributeSource를 사용한다. 이 방식을 사용하면
 애노테이션을 이용할 때는 속성 중에서 많이 사용되는 한 가지를 타입 레벨에 공통 속성으로 지정해주고, 나머지 속성은 개별 메소드에 적용해야 한다.
 
 
+## 6.8 트랜잭션 지원 테스트
+
+### 요약
+AOP를 이용해 코드 외부에서 트랜잭션의 기능을 부여해주고 속성을 지정할 수 있게 하는 방법을 선언적 트랜잭션이라고 한다. 반대로 TransactionTemplate이나  
+개별 데이터 기술의 트랜잭션 API를 사용해 직접 코드 안에서 사용하는 방법은 프로그램에 의한 트랜잭션이라고 한다.
+
+AOP 덕분에 프록시를 이용한 트랜잭션 부가기능을 간단하게 어플리케이션 전반에 적용할 수 있었다. 또 한 가지 중요한 기술적인 기반은 바로 스프링의 트랜잭션 추상화다.
+
+#### 트랜잭션 동기화 테스트
+지금까지는 선언적으로 트랜잭션을 적용했지만 필요하다면 직접 transactionManager를 가져올 수도 있다.  
+테스트에서 userService.add(), deleteAll() 메소드들은 각각의 트랜잭션을 생성해서 3개의 트랜잭션이 생겼다 끝나게 된다. 이때 테스트 메소드에 트랜잭션을  
+적용하면 REQUIRED 옵션에 따라 모든 메소드가 하나의 트랜잭션 안에서 실행되게 할 수 있다.
+
+```java
+@Test
+public void transactionSync() {
+    DefaultTransactionDefinition txDefinition = new DefaultTransactionDefinition();
+    TransactionStatus txStatus = transactoinManager.getTransaction(txDefinition);
+    //로직
+    transactionManager.commit(txStatus);        
+}
+```
+
+트랜잭션 속성 중에서 읽기전용과 제한시간 등은 처음 트랜잭션이 시작할 때만 적용되고 그 이후에 참여하는 메소드의 속성은 무시된다.
+
+#### 테스트를 위한 트랜잭션 애노테이션
+스프링의 컨텍스트 테스트 프레임워크는 애노테이션을 이용해 테스트를 편리하게 만들 수 있는 여러 가지 기능을 추가하게 해준다. @ContextConfiguration을 클래스에  
+부여하면 테스트를 실행하기 전에 스프링 컨테이너를 초기화하고, @Autowired 애노테이션이 붙은 필드를 통해 테스트에 필요한 빈에 자유롭게 접근할 수 있다.
+
+@Transactional  
+테스트에도 이 애노테이션을 적용할 수 있다.
+
+@Rollback
+테스트용 트랜잭션은 테스트가 끝나면 자동으로 롤백된다. 테스트에 적용된 @Transactional은 기본적으로 트랜잭션을 강제로 롤백시키도록 설정되어 있다.  
+@Rollback의 기본값은 true이다. 롤백을 하고 싶지 않으면 @Rollback(false)를 적용하면 된다.
+
+@TransactionConfiguration  
+@Transactional은 테스트 클래스에 넣어서 모든 테스트 메소드에 일괄 적용할 수 있지만 @Rollback은 메소드 레벨에만 적용할 수 있다.  
+@TransactionConfiguration을 사용하면 롤백에 대한 공통 속성을 지정할 수 있다. default는 false로 해두고 롤백이 필요한 메소드에만 @Rollback을  
+적용하면 된다. @TransactionConfiguration(defaultRollback=false)를 클래스에 적용하면 된다.  
+
 
 
