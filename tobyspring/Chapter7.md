@@ -209,3 +209,116 @@ DI를 사용한다고 해서 항상 모든 프로퍼티 값을 설정에 넣고,
 오브젝트를 다 만들어버린다는 점이다. 프로퍼티로 설정한 빈 오브젝트로 바로 대체되긴 하겠지만 사용되지 않는 오브젝트가 만들어진다. @PostConstruct 초기화 메소드를  
 이용해 프로퍼티가 설정됐는지 확인하고 없는 경우에만 디폴트 오브젝트를 만드는 방법을 사용하면 해결할 수 있다.  
 
+
+## 7.3 서비스 추상화 적용
+JaxbXmlSqlReader는 크게 두 가지 과제로 더 발전시킬 수 있다.  
+- JAXB 외에도 다양한 XML과 자바오브젝트를 매핑하는 기술이 있다. 필요에 따라 다른 기술로 손쉽게 교체할 수 있어야 한다.  
+- XML 파일을 좀 더 다양한 소스에서 가져올 수 있게 만든다. 현재는 UserDao 클래스와 같은 클래스패스 안에서만 XML을 읽어올 수 있다. 이것을 임의의 클래스패스나  
+파일 시스템 상의 절대위치 또는 HTTP 프로토콜을 통해 원격에서 가져오도록 확장할 수 없는가 하는 점이다.  
+  
+XML과 자바오브젝트를 매핑해서 상호 변환해주는 기술을 간단히 OXM(Object-XML Mapping) 이라고도 한다. OXM 프레임워크와 기술들은 기능 면에서 상위 호환성이  
+있다. JAXB를 포함해서 다섯 가지 기술 모두 사용 목적이 동일하기 때문에 유사한 기능과 API를 제공한다. 기능이 같은 여러 가지 기술이 존재한다는 이야기가 나오면  
+떠오르는게 있다. 바로 서비스 추상화다. 스프링은 OXM에서도 서비스 추상화를 제공한다. 
+
+#### OXM 서비스 인터페이스
+스프링이 제공하는 OXM 추상화 서비스 인터페이스에는 자바 오브젝트를 XML로 변환하는 Marshaller와 반대인 Unmarshaller가 있다. SqlReader는 이 중에서  
+Unmarshaller를 이용하면 된다.
+
+```java
+public interface Unmarshaller {
+    boolean support(Class<?> clazz);
+    Object unmarshal(Source source) throws IOException, XmlMappingException
+        // source를 통해 제공받은 XML을 자바오브젝트 트리로 변환해서 그 루트 오브젝트를 돌려준다.
+}
+```
+
+JAXB를 이용하도록 만들어진 Unmarshaller 구현 클래스는 Jaxb2Marshaller이다. 이 클래스는 Marshaller와 Unmarshaller 인터페이스를 둘 다 구현한다.  
+
+이제 스프링의 OXM 추상화 기능을 이용하는 SqlService를 만들어보자. 이름은 OxmSqlService라고 하고 SqlRegistry는 DI 받을 수 있게 만들지만 SqlReader는  
+스프링의 OXM 언마샬러를 이용하도록 OxmSqlService 내에 고정시켜야 한다. SQL을 읽는 방법을 OXM으로 제한해서 사용성을 극대화하는게 목적이다.  
+
+OxmSqlService는 BaseSqlService와 유사하게 SqlReader 타입의 의존 오브젝트를 사용하되 이를 스태틱 멤버 클래스로 내장하고 자신만이 사용할 수 있도록  
+만들어보자. 의존 오브젝트를 자신만이 사용하도록 독점하는 구조로 만드는 방법이다. 밖에서 볼 때는 하나의 오브젝트로 보이지만 내부에서는 의존관계를 가진 두 개의  
+오브젝트가 깔끔하게 결합돼서 사용된다. 유연성은 조금 손해를 보더라도 내부적으로 낮은 결합도를 유지한 채로 응집도가 높은 구현을 만들 때 유용하게 쓸 수 있는 방법이다.  
+
+```java
+public class OxmSqlService implements SqlService {
+    private final OxmSqlReader oxmSqlReader = new OxmSqlReader();
+    
+    private class OxmSqlReader implements SqlReader {
+        
+    }
+}
+```
+
+OxmlSqlReader는 외부에 노출되지 않기 때문에 OxmSqlService에 의해서만 만들어지고, 스스로 빈으로 등록될 수 없다. 따라서 자신이 DI를 통해 제공받아야 하는  
+프로퍼티가 있다면 이를 OxmSqlService의 공개된 프로퍼티를 통해 간접적으로 DI 받아야 한다. 
+
+```java
+public class OxmlSqlService implements SqlService {
+    private final OxmSqlReader oxmSqlReader = new OxmlSqlService();
+    
+    public void setUnmarshaller(Unmarshaller unmarshaller) {
+        this.oxmSqlReader.setUnmarshallser(unmarshaller);
+    }
+
+    public void setSqlmapFile(String sqlmapFile) {
+        this.oxmSqlReader.setSqlmapFile(sqlmapFile);
+    }
+    
+    private class OxmSqlReader implements SqlReader {
+        private Unmarshaller unmarshaller;
+        private String sqlmapFile;
+        // setter
+    }
+}
+```
+
+#### 위임을 이용한 BaseSqlService의 재사용
+loadSql()과 getSql()이라는 SqlService의 핵심 메소드 구현 코드가 BaseSqlService와 동일하다. 프로퍼티 설정을 통한 초기화 작업을 제외하면 두 가지  
+작업의 코드는 BaseSqlService와 OxmSqlService 양쪽에 중복된다. 지금은 로직이 간단하지만 작업이 꽤나 복잡해지면 코드의 중복은 심각한 문제가 될 수도 있다.  
+loadSql()과 getSql()의 구현 로직은 BaseSqlService에만 두고, OxmSqlService는 일종의 설정과 기본 구성을 변경해주기 위한 어댑터 같은 개념으로  
+BaseSqlService 앞에 두는 설계가 가능하다. OxmSqlService의 외형적인 틀은 유지한 채로 SqlService의 기능 구현은 BaseSqlService로 위임하는 것이다.  
+
+부가기능 프록시처럼 많은 타깃에 적용할 것도 아니고, 특화된 서비스를 위해 한 번만 사용할 것이므로 유연한 DI 방식은 포기하고 OxmSqlService와 BaseSqlService를  
+한 클래스로 묶는 방법을 생각해보자. 마치 OxmSqlReader를 OxmSqlService에 내장하고 있는 것과 마찬가지 방법을 사용하면 된다. 
+
+```java
+public class OxmSqlService implements SqlService {
+    private final BaseSqlService baseSqlService = new BaseSqlService();
+    
+    @PostConstruct
+    public void loadSql(){
+        this.baseSqlService.setSqlReader(this.oxmSqlReader);
+        this.baseSqlService.setSqlRegistry(this.sqlRegistry);
+        this.baseSqlService.loadSql();
+    }
+    
+    public String getSql(String key) throws SqlRetrievalFailureException {
+        return this.baseSqlService.getSql(key)
+    }
+}
+```
+
+#### 리소스 추상화
+기존 OxmSqlReader는 클래스패스로부터 리소스를 가져오기 위해 ClassLoader 클래스의 getResourceAsStream() 메소드를 사용했다. 그래서 리소스가  
+클래스패스에 존재하는 파일로 제한된다. 리소스의 위치와 종류에 따라서 다른 클래스와 메소드를 사용해야 한다는 점이 불편하다. 그렇다면 OXM과 마찬가지로 서비스 추상화를  
+적용할 수 있지 않을까? 
+
+스프링은 자바에 존재하는 일관성 없는 리소스 접근 API를 추상화해서 Resource라는 추상화 인터페이스를 정의했다. 어플리케이션 컨텍스트가 사용할 설정정보 파일을  
+지정하는 것부터 시작해서 스프링의 거의 모든 API는 외부의 리소스 정보가 필요할 때는 항상 이 Resource 추상화를 이용한다.
+
+스프링에는 URL 클래스와 유사하게 접두어를 이용해 Resource 오브젝트를 선언하는 방법이 있다. 문자열 안에 리소스의 종류와 리소스의 위치를 함께 표현하게 해주는  
+것이다. 그리고 이렇게 문자열로 정의된 리소스를 실제 Resource 타입 오브젝트로 변환해주는 ResourceLoader를 제공한다.
+
+```java
+public interface ResourceLoader {
+    Resource getResource(String location);
+}
+```
+
+ResourceLoader의 대표적인 예는 바로 스프링의 애플리케이션 컨텍스트이다. 애플리케이션 컨텍스트가 구현해야 하는 인터페이스인 ApplicationContext는  
+ResourceLoader 인터페이스를 상속하고 있다. 따라서 모든 애플리케이션 컨텍스트는 리소스 로더이기도 하다.  
+스프링 컨테이너는 리소스 로더를 다양한 목적으로 사용하고 있다. 어플리케이션 컨텍스트가 사용하할 스프링 설정정보가 담긴 XML 파일도 리소스 로더를 이용해 Resource  
+형태로 읽어온다. 
+
