@@ -553,4 +553,100 @@ public class AppContext {
 ```
 
 이제 AppContext가 설정 클래스로 사용되면 SqlServiceContext도 함께 적용될 것이다.
-=
+
+#### 프로파일
+테스트환경과 운영환경에서 각기 다른 빈 정의가 필요한 경우가 종종 있다.testUserService처럼 아예 테스트할 때만 필요한 빈이라면 테스트용 설정 클래스에만 넣으면  
+되지만, mailSender 빈처럼 양쪽 모두 필요하면서 빈의 내용이 달라져야 하는 경우에는 빈 설정정보 작성이 곤란해진다. 이 문제를 해결하려면 운영환경에서는 반드시  
+필요하지만 테스트 실행 중에는 배제돼야 하는 빈 설정을 별도의 설정 클래스를 만들어 따로 관리할 필요가 있다. ProductionAppContext라는 이름의 새로운 클래스를  
+만들어 옮겨보자.  
+@Import로 AppContext에 항상 포함되는 SqlServiceContext를 제외하고 TestAppContext와 ProductionAppContext 두 개의 설정 클래스가 추가됐다.  
+테스트 환경에서는 @ContextConfiguration에 AppContext와 TestAppContext를 지정해서 두 개 클래스의 빈 설정이 조합돼서 테스트가 동작하게 만들었고,  
+운영환경에서는 AppContext와 ProductionContext 두 개의 클래스가 DI 정보로 사용되게 설정하면 될 것이다. 하지만 이런식으로 파일을 늘리는 일은 번거로울 수  
+있다. 
+
+#### @Profile과 @ActiveProfile
+스프링 3.1은 환경에 따라서 빈 설정정보가 달라져야 하는 경우에 파일을 여러 개로 쪼개고 조합하는 등의 번거로운 방법 대신 간단히 설정정보를 구성할 수 있는 방법을  
+제공한다. 실행환경에 따라 빈 구성이 달라지는 내용을 프로파일로 정의해서 만들어두고, 실행 시점에 어떤 프로파일의 빈 설정을 사용할지 지정하는 것이다.  
+
+프로파일은 간단한 이름과 빈 설정으로 구성된다. 프로파일은 설정 클래스 단위로 지정한다. @Profile 애노테이션을 클래스 레벨에 부여하고 프로파일 이름을 넣어주면 된다.  
+```java
+@Configuration
+@Profile("test")
+public class TestAppContext {
+    
+}
+```
+
+AppContext나 SqlServiceContext 클래스에는 굳이 프로파일 지정을 할 필요가 없다. 스프링 3.1은 프로파일이 지정되어 있지 않은 빈 설정은 default 프로파일로  
+취급한다. 디폴트 정보로 항상 빈으로 등록된다. 
+
+테스트 클래스에서는 @ActiveProfiles 애노테이션을 통해 활성 프로파일을 지정해줄 수 있다. 
+
+#### 중첩 클래스를 이용한 프로파일 적용
+파일이 많아지니 전체 구성을 살펴보기가 조금은 번거로워졌다. 서로 의존관계를 맺고 있는 빈들이 많아진다면 어느 빈이 어디서 적용됐는지 확인하기 위해 여러 개의 클래스  
+파일을 열어봐야 할 것이다. 프로파일마다 빈 구성이나 구현 클래스에 어떤 차이가 있는지 한눈에 비교하기 불편할 수도 있다. 그래서 이번에는 프로파일에 따라 분리했던  
+설정정보를 하나의 파일로 모아보자. 프로파일이 지정된 독립 설정 클래스의 구조는 그대로 유지한 채로 단지 소스코드의 위치만 통합하는 것이다. 스태틱 중첩 클래스를  
+이용하면 된다. 
+
+ProductionAppContext와 TestAppContext를 AppContext의 중첩 클래스로 만들 수 있다. 각각 독립적으로 사용될 수 있게 스태틱 클래스로 만들어줘야 한다.  
+이렇게 중첩 멤버 클래스로 프로파일 설정 클래스를 포함시키면 @Import에 지정했던 두 개의 프로파일 설정 클래스를 아예 제거해도 된다.  
+
+각 프로파일 클래스에 빈 설정정보가 많다면 하나의 파일로 모았을 때 전체 구조를 파악하기가 그다지 유리하지 않을 수 있다. 
+
+#### 프로퍼티 소스
+프오파일을 이용해 다른 환경에서 다른 빈 설정이 적용되게 만들었지만 아직 AppContext에는 테스트 환경에 종속되는 정보가 남아 있다. dataSource의 DB 연결정보는  
+환경에 따라 달라진다. 
+
+DB 연결정보를 환경에 따라 다르게 설정될 수 있어야 한다. 또한 같은 종류의 환경이더라도 필요에 따라 손쉽게 변경할 수 있으면 좋겠다. 그래서 이런 외부 서비스 연결에  
+필요한 정보는 자바 클래스에서 제거하고 손쉽게 편집할 수 있고 빌드 작업이 따로 필요없는 XML이나 프로퍼티 같은 텍스트 파일에 저장해두는 편이 낫다.
+
+#### @PropertySource
+스프링 3.1은 빈 설정 작업에 필요한 프로퍼티 정보를 컨테이너가 관리하고 제공해준다. 스프링 컨테이너가 지정된 정보 소스로부터 프로퍼티 값을 수집하고, 이를 빈 설정  
+작업 중에 사용할 수 있게 해준다. 컨테이너가 프로퍼티 값을 가져오는 대상을 프로퍼티 소스라고 한다. 환경 변수나 시스템 프로퍼티처럼 디폴트로 프로퍼티 정보를 끌어오는  
+프로퍼티 소스도 있고, 프로퍼티 파일이나 리소스의 위치를 지정해서 사용되는 프로퍼티 소스도 있다. 프로퍼티 소스 등록에는 @PropertySource 애노테이션을 사용한다.  
+@PropertySource("/database.properties")
+
+@PropertySource로 등록한 리소스로부터 가져오는 프로퍼티 값은 컨테이너가 관리하는 Environment 타입의 환경 오브젝트에 저장된다. 환경 오브젝트는 빈처럼  
+@Autowired를 통해 필드로 주입받을 수 있다. 주입받은 Environment 오브젝트의 getProperty() 메소드를 이용하면 프로퍼티 값을 가져올 수 있다. 
+
+```java
+@Autowired Environment env;
+
+env.getProperty(env.getProperty("db.driverClass"))
+```
+
+#### PropertySourcesPlaceHolderConfigurer
+Environment 오브젝트 대신 프로퍼티 값을 직접 DI 받는 방법도 가능하다. @Value는 이름 그대로 값을 주입받을 때 사용한다.  
+@Value에는 프로퍼티 이름을 ${} 안에 넣은 문자열을 디폴트 엘리먼트 값으로 지정해준다. 이 값을 치환자라고 부른다.  
+@Value와 치환자를 이용해 프로퍼티 값을 필드에 주입하려면 특별한 빈을 하나 선언해줘야 한다. 프로퍼티 소스로부터 가져온 값을 @Value 필드에 주입하는 기능을  
+제공해주는 PropertySourcesPlaceHolderConfigurer를 빈으로 정의해줘야 한다.
+
+```java
+@Bean
+public static PropertySourcesPLaceholderConfigurer placeholderConfigurer() {
+    return new PropertySourcesPLaceholderConfigurer();
+    }
+```
+
+빈 팩토리 후처리기로 사용되는 빈을 정의해주는 것인데 이 빈 설정 메소드는 반드시 스태틱 메소드로 선언해야 한다.
+이제 @Value로 선언한 네 개의 필드에는 @PropertySource로 지정한 파일에서 가져온 프로퍼티 값이 자동으로 주입될 것이다.  
+@Value를 이용하면 driverClass처럼 문자열 그대로 사용하지 않고 타입 변환이 필요한 프로퍼티를 스프링이 알아서 처리해준다는 장점이 있다. 
+
+#### 빈 설정의 재사용과 @Enable*
+SQL 서비스의 구현 클래스들은 애플리케이션의 다른 빈에 의존하지 않기 때문에 얼마든지 독립적으로 패키징해서 배포가 가능하다.  
+OXM과 내장형 DB 등을 활용해 만든 SQL 서비스를 적용하려면 네 개의 빈 설정이 필요하다. 클래스와 인터페이스, 스키마 파일 등은 패키지를 독립적으로 바꾼 뒤에 jar  
+파일로 묶어서 제공하면 되지만 빈 설정은 프로젝트마다 다시 해줘야 하는 번거로움이 있다. SQL 서비스를 사용하고 싶은 프로젝트라면 다음과 같이 @Import 한 줄만  
+추가해주면 SQL 서비스 관련 빈 등록을 한 번에 끝낼 수 있다.
+
+#### 빈 설정자
+SQL 서비스를 재사용 가능한 독립적인 모듈로 만들려면 해결할 문제가 아직 한 가지 남아있다. OxmSqlService 내부의 OxmSqlReader의 sqlmap.xml 파일의 위치를  
+지정하는 부분이 있다. 이 부분에서 클래스패스를 UserDao.class로 고정하고 있다.
+
+```java
+private class OxmSqlReader implements SqlReader {
+    private Unmarshaller unmarshaller;
+    private Resource sqlmap = new ClassPathResource("sqlmap.xml", UserDao.class);
+}
+```
+
+SQL 매핑 리소스를 디폴트 위치와 다르게 만들려면 어떻게 해야 할까? 결국 SQL 매핑 리소스는 빈 클래스 외부에서 설정할 수 있어야 한다.
