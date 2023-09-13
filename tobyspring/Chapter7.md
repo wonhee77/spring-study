@@ -649,4 +649,34 @@ private class OxmSqlReader implements SqlReader {
 }
 ```
 
-SQL 매핑 리소스를 디폴트 위치와 다르게 만들려면 어떻게 해야 할까? 결국 SQL 매핑 리소스는 빈 클래스 외부에서 설정할 수 있어야 한다.
+SQL 매핑 리소스를 디폴트 위치와 다르게 만들려면 어떻게 해야 할까? 결국 SQL 매핑 리소스는 빈 클래스 외부에서 설정할 수 있어야 한다.  
+그래서 SqlService 빈을 생성할 때 new ClassPathResource("sqlmap.xml", UserDao.class)를 set 해주면 클래스 내부 의존성을 제거할 수 있다.  
+하지만 여전히 설정 클래스에서는 UserDao.class라는 특정 애플리케이션에 종속된 정보가 남아 있다. DI를 사용해 해결해보자.  
+SqlServiceContext에서 분리하고 싶은 것은 SQL 매핑파일의 위치를 지정하는 작업이다. 파일의 위치와 리소스 종류가 달라지더라도 SqlServiceContext는 수정할  
+필요가 없어야 한다. SqlMapConfig라는 interface를 정의하고, UserSqlMapConfig로 구현체를 만든다. 그리고 resource를 반환하게 한다.  
+
+SqlServiceContext에서는 SqlMapConfig를 빈으로 주입받아 SqlService에 주입한다. AppContext가 SqlMapConfig를 구현하게 만들면 SqlMapConfig를  
+따로 빈등록할 필요 없이 애플리케이션의 빈 관련 설정은 AppContext로 모두 통합될 것이다.  
+
+#### @Enable* 애노테이션
+SqlServiceContext는 이제 SQL 서비스 라이브러리 모듈에 포함돼서 재사용될 수 있다. SQL 서비스가 필요한 애플리케이션은 메인 설정 클래스에서 @Import로  
+SqlServiceContext 빈 설정을 추가하고 SqlMapConfig를 구현해 SQL 매핑파일 위치를 지정해주기만 하면 된다.  
+
+스프링 3.1은 SqlServiceContext처럼 모듈화된 빈 설정을 가져올 때 사용하는 @Import를 다른 애노테이션으로 대체할 수 있는 방법을 제공한다.  
+@Component는 빈 자동등록 대상을 지정할 때 사용하는 애노테이션인데, 많은 경우 직접 사용하기보다는 @Service, @Repository와 같은 좀 더 의미있는 이름의  
+애노테이션을 만들어 사용한다. @Component를 메타 애노테이션으로 넣어서 애노테이션을 정의해주면 @Component와 동일한 빈 등록기능이 적용되면서 자동등록되는 빈의  
+종류나 계층이 무엇인지 나타낼 수 있고, AOP를 이용해 특정 애노테이션이 달린 빈만 선정해 부가 기능을 제공하게 만들 수도 있다. 비슷한 방식으로 @Import도 다른  
+이름의 애노테이션으로 대체 가능하다.  
+
+```java
+@Import(value=SqlServiceContext.class)
+public @interface EnableSqlService {
+    
+}
+```
+
+직접 정의한 애노테이션에 @Import를 메타 애노테이션으로 부여해서 사용하는 방법은 이 밖에도 여러 가지 장점이 있다. 애노테이션을 정의하면서 앨리먼트를 넣어서 옵션을  
+지정하게 할 수도 있다. SqlMapConfig 인터페이스를 통해 SqlServiceContext에 SQL 매핑파일을 전달하게 했던 방식을 다음과 같이 간결하게 만들 수도 있다.  
+
+@EnableSqlService("classpath:/sprintbook/user/sqlmap.xml")
+
