@@ -475,3 +475,123 @@ systemProperties 빈은 System.getProperties() 메소드가 돌려주는 Propert
 오브젝트다.
 
 
+## 1.3 프로토타입과 스코프
+기본적으로 스프링 빈은 싱클톤으로 만들어진다. 따라서 싱글톤의 필드에는 의존관계에 있는 빈에 대한 레퍼런스나 읽기전용 값만 저장해두고 오브젝트의 변하는 상태를 저장하는  
+인스턴스 변수는 두지 않는다. 때로는 빈이 싱글톤 방식이 아닌 다른 방법으로 만들어져야될 때가 있다. 싱글톤이 아닌 빈은 프로토타입과 빈 스코프 빈이다.
+
+스코프  
+스코프는 존재할 수 있는 범위를 가리키는 말이다. 빈의 스코프는 빈 오브젝트가 만들어져 존재할 수 있는 범위다.
+
+#### 프로토 타입 스코프
+@Scope("prototype") 을 통해 프로토타입 빈을 만들 수 있고 컨테이너에 빈을 요청할 때마다 새로운 오브젝트를 만든다.
+
+프로토타입 빈의 생명주기와 종속성  
+IoC의 기본 개념은 애플리케이션을 구성하는 핵심 오브젝트를 코드가 아니라 컨테이너가 관리힌다는 것이다. 그래서 스프링이 관리하는 오브젝트인 빈은 그 생성과 다른 빈에  
+대한 의존ㄷ성 주입, 초기화, DI와 DL을 통한 사용, 제거에 이르기 ㄷ까지 모든 오브젝트의 생명주기를 컨테이너가 관리한다. 하지만 프로토타입 빈은 컨테이너가 빈을  
+제공하고 나면 컨테이너는 더 이상 빈 오브젝트를 관리하지 않는다. 따라서 프로토타입 빈은 한번 DL이나 DI를 통해 컨테이너 밖으로 전달된 후에는 이 오브젝트는 더 이상  
+스프링이 관리하는 빈이 아니다. 그래서 프로토타입 빈은 이 빈을 주입받은 오브젝트에 종속적일 수 밖에 없다.  
+
+프로토타입 빈의 용도  
+프로토타입 빈은 코드에서 new로 오브젝트 생성하는 것을 대신하기 위해 사용된다. 사용자의 요청별로 독립적인 정보나 작업 상태를 저장해둘 오브젝트를 만들 필요가 있다.  
+대부분 new 키워드나 팩토리를 이용해 코드 안에서 직접 오브젝트를 만들면 된다. new로 충분한 작업을 번거롭게 컨테이너에게 요청할 필요는 없다. 그런데 드물긴 하지만  
+컨테이너가 오브젝트를 만들고 초기화해줘야 하는 경우가 존재한다. 바로 DI 때문이다.  
+매번 새롭게 만들어지는 오브젝트가 컨테이너 내의 빈을 사용해야 하는 경우가 있다. 오브젝트에 DI를 적용하려면 컨테이너가 오브젝트를 만들게 해야한다. 이런 경우에  
+프로토타입 빈이 유용하다. 매번 새로운 오브젝트가 필요하면서 DI를 통해 다른 빈을 사용할 수 있어야 한다면 프로토타입 빈이 가장 적절한 선택이다.  
+고객의 A/S 접수를 저장하고 메일을 발송하는 서비스를 개발할 때 고객의 정보를 ServiceRequest 객체를 new 로 생성하여 서비스 계층에 전달하고, 서비스 계층에서  
+DAO를 통해 customer를 받아 올 수 도 있지만 ServiceRequest를 프로토타입 빈으로 만들고 DAO를 DI 받아 Customer를 가져오는 일을 ServiceRequest에서  
+하게 되면 데이터 중심에서 오브젝틀 중심으로 바꿀 수 있다. 마찬가지고 메일을 보내는 것도 ServiceRequest 내에서 처리할 수 있다. 컨트롤러 계층에서  
+ApplicatoinContext를 주입받고 getBean()을 사용하면 매번 새로운 ServiceRequest를 받아올 수 있다. 
+
+DI와 DL  
+앞서서 getBean()을 이용해 DL을 사용하였다. 번거롭게 DL 방식을 쓰지 않고 프로토타입 빈을 직접 DI 해서 사용하는 건 어떨까? 컨트롤러에서 @Autowired를 사용해  
+ServiceRequest를 받아오게 한다면 문제가 생길 것이다. 컨트롤러는 싱글톤 빈이기 때문에 생성할 때 딱 한번만 ServiceRequest 빈을 가져온다. 따라서 코드 내에서  
+필요할 때마다 컨테이너에게 요청해서 새로운 오브젝트를 만들어야한다. 즉 DL 방식을 사용해야 한다. 
+
+프로토타입 빈의 DL 전략  
+getBean()을 사용하는 방법은 스프링의 API가 일반 애플리케이션에 코드에서 사용하게 된다. 스프링은 프로토타입 빈처럼 DL 방식을 코드에서 사용해야 할 경우를 위해  
+직접 ApplicationContext를 이용하는 것 외에도 다양한 방법을 제공한다.
+
+- ApplicationContext, BeanFactory
+기존에 사용했던 방법
+  
+- ObjectFactory, ObjectFactoryCreatingFactoryBean
+직접 애플리케이션 컨텍스트를 사용하지 않으려면 중간에 컨텍스트에 getBean()을 호출해주는 역할을 맡은 오브젝트를 두면 된다. 
+  
+```java
+@Resource
+private ObjectFactory<ServiceRequest> serviceReqeustFactory;
+
+public void serviceReqeustFormSubmit(HttpServletReqeust request) {
+    ServiceRequest serviceRequest = this.serviceRequestFactory.getObject();
+    serviceRequest.setCustomerByCustomerNo(request.getParameter("custno"));
+}
+```
+
+- ServiceLocatorFactoryBean
+ObjectFactory가 단순하고 깔끔하지만 프레임워크 인터페이스를 애플리케이션 코드에서 사용하는 것이 맘에 들지 않을 수도 있다. 이럴땐 ServiceLocatorFactoryBean을  
+  사용하면 된다. 
+  
+```java
+public interface ServiceRequestFactory {
+    ServiceRequest getServiceFactory();
+}
+// ServiceLocatorFactoryBean으로 등록
+
+@Autowired ServiceRequestFactory serviceRequestFactory;
+
+public void serviceRequestFormSubmit(HttpServletReqeust request) {
+    ServiceRequest serviceRequest = this.serviceRequestFactory.getServiceFactory();
+}
+```
+
+- 메소드 주입
+메소드 주입은 메소드를 통한 주입이 아니라 메소드 코드 자체를 주입하는 것을 말한다. 메소드 주입은 일정한 규칙을 따르는 추상 메소드를 작성해두면 ApplicationContext와  
+  getBean() 메소드를 사용해서 새로운 프로토타입 빈을 가져오는 기능을 담당하는 메소드를 런타임 시에 추가해주는 기술이다.
+  
+```java
+abstract public ServiceRequest getServiceReqeust();
+```
+
+```xml
+<bean id="serviceRequestController" class="...ServiceRequestController">
+    <lookup-method name="getServiceRequest" bean="serviceRequest" />
+</bean>
+```
+고급 방법이긴 하지만 단위테스트에서 단점이 더 많을 수도 있다. 
+
+- Provider<T>
+JSR-330에 추가된 표준 인터페이스인 Provider가 있다. Provider는 ObjectFactory와 거의 유사하게 <T> 타입 파라미터와 get()이라는 팩토리 메소드를 가진  
+  인터페이스다. Provider 인터페이스를 @Inject, @Autowired, @Resource 중의 하나를 이용해 DI 되도록 지정해주기만 하면 스프링이 자동으로 Provider를  
+  구현한 오브젝트를 생성해서 주입해준다.
+```java
+@Inject Provider<ServiceRequest> serviceRequestProvidor;
+
+public void serviceReqeustFormSubmit(HttpServletRequest reqeust) {
+    ServiceRequest serviceReqeust = this.serviceRequestProvider.get();
+    }
+```
+
+Provider를 사용하는 것이 가장 좋다. 싱글톤 빈은 학습 테스트를 만드는 용도 외에는 DL을 사용해야 할 필요는 없다. 
+
+#### 스코프
+스코프의 종류  
+스프링은 싱글톤, 프로토타입 외에 요청, 세션, 글로벌세션, 애플리케이션이라는 네 가지 스코프를 기본적으로 제공한다. 애플리케이션을 제외한 나머지 세 가지 스코프는  
+싱글톤과 다르게 독립적인 상태를 저장해두고 사용하는데 필요하다. 서버에서 만들어지는 빈 오브젝트에 상태를 저장해둘 수 있는 이유는 사용자마다 빈이 만들어지는 덕분이다.
+
+- 요청 스코프
+요청 스코프는 빈이 하나의 웹 요청 안에서 만들어지고 해당 요청이 끝날 때 제거된다. 존재 번위와 특징은 하나의 요청이 일어나는 메소드 파라미터로 전달되는 도메인 오브젝트나  
+  DTO와 비슷하다. 
+  
+- 세션 스코프, 글로벌 세션 스코프
+HTTP 세션과 같은 존재 범위를 갖는 빈으로 만들어주는 스코프다. HTTP 세션은 사용자별로 만들어지고 브라우저를 닫거나 세션 타임이 종료될 때까지 유지되기 때문에  
+  로그인 정보나 사용자별 선택옵션 등을 저장해두기에 유용하다.
+  
+-애플리케이션 스코프
+애플리케이션 스코프는 서블릿 컨텍스트에 저장되는 빈 오브젝트다. 서블릿 컨텍스트는 웹 애플리케이션마다 만들어진다. 웹 애플리케이션마다 스프링의 애플리케이션 컨텍스트도  
+만들어진다. 웹 애플리케이션과 애플리케이션 컨텍스트의 존재 범위가 다른 경우가 있기 때문에 사용된다. 
+
+스코프 빈의 사용 방법  
+애플리케이션 스코프를 제외한 나머지 세 가지 스코프는 DI를 통해 사용할 수 없고 DL을 사용해야 한다. 하지만 스프링이 제공하는 특별한 DI 방법을 사용하면 DI처럼  
+사용할 수 있다. 직접 스코프 빈을 DI 하는 대신 스코프 빈에 대한 프록시를 DI 해주는 것이다.
+
+
