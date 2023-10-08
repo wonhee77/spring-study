@@ -185,3 +185,101 @@ insert.execute(new BeanPropertySqlParameterSource(member));
 저장해두고 사용하는 것이다. SimpleJdbcTemplate을 생성하는 코드의 중복을 제거하기 위해서는 자체를 빈으로 등록해두고 주입받거나 추상 DAO를 만들고 이 클래스를  
 상속하는 DAO들을 만드는 것이다. 
 
+
+## 2.3 iBatis SqlMaps  
+iBatis는 자바오브젝트와 SQL 문 사이의 자동 매핑 기능을 지원하는 ORM 프레임워크다. 코드 내에서 자바오브젝트만을 이용해 데이터 로직을 작성할 수 있게 해주고,  
+SQL을 별도의 파일로 분리해서 관리하게 해주며, 오브젝트-SQL 사이의 파라미터 매핑 작업을 자동으로 해준다.  
+SQL을 별도의 XML 파일 안에 작성하고 관리할 수 있기 때문에 변경이 있을 때 컴파일하지 않아도 된다. 
+
+#### SqlMapClient 생성
+iBatis의 핵심 API는 SqlMapClient 인터페이스에 담겨 있다. SqlMapClient는 SqlMapClientBuilder를 이용해 코드에서 생성할 수 있다. 하지만 스프링에서는  
+SqlMapClient를 빈으로 등록해두고 DAO에서 DI 받아 사용해야 하기 때문에 SQLMapClient를 빈으로 등록해주는 팩토리 빈의 도움이 필요하다.  
+SqlMapClientFactoryBean을 이용해서 SqlMapClient를 빈으로 등록할 수 있다. 
+
+iBatis 설정파일과 매핑파일  
+보통 하나의 설정파일과 한 개 이상의 매핑파일로 구성된다.
+
+- 설정파일  
+설정파일에는 데이터소스, 트랜잭션 매니저, 매핑 리소스 파일 목록, 프로퍼티, 타입별칭과 핸들러, 오브젝트 팩토리와 설정 프로퍼티 값을 넣을 수 있다. 
+```xml
+<sqlMapConfig>
+  <sqlMap resource="springbook/learningtest/spring/ibatis/Member.xml"/>
+</sqlMapConfig>
+```
+DB 커넥션과 트랜잭션 관리를 위한 정보는 설정파일에 넣지 않고 스프링 빈으로 등록한 것을 사용하는 게 바람직하다.
+
+- 매핑파일  
+```xml
+<sqlMap namespace="Member">
+  <typeAlias alias="Member" type="springbook.learningtest.spring.jdbc.Memeber"/> #파라미터와 결과 매핑에 사용할 클래스 별칭 등록
+  
+  <delete id="deleteMemberAll">
+    delete from member
+  </delete>
+  
+  <insert id="insertMember" parameterCalss="Member">
+    insert into member (id, name, point) values(#id#, #name#, #point#)
+  </insert>
+</sqlMap>
+```
+
+#### SqlMapClientTemplate
+DAO에서 SqlMapClient를 직접 사용하는 대신 스프링이 제공하는 템플릿 오브젝트인 SqlMapClientTemplate을 이용하는 것이 좋다. 그래야먄 스프링 데이터 엑세스  
+기술이 제공하는 다양한 혜택을 받을 수 있기 때문이다. 템플릿을 사용하면 예외 변환, 스프링 트랜잭션과 동기화 등이 지원된다.
+
+```java
+public class MemberDao {
+    private SqlMapClientTemplate sqlMapClientTemplate;
+    
+    public void setSqlMapClient(SqlMapClient sqlMapClient) {
+        sqlMapClientTemplate = new SqlMapClientTemplate(sqlMapClient);
+    }
+}
+```
+
+스프링이 제공하는 SqlMapClientDaoSupport를 상속해 DAO를 만들어도 된다. 템플릿 오브젝트는 getSqlMapClientTemplate() 메소드로 가져올 수 있다.
+
+등록, 수정, 삭제  
+- insert()  
+```java
+Object insert(String statementName)
+Object insert(String statementName, Object parameterObject)
+```
+
+- update()  
+```java
+int uddate(String statementName)
+int uddate(String statementName, Object parameterObject)
+int uddate(String statementName, Object parameterObject, int requiredRowsAffected) //영향 받은 로우 개수 체크
+```
+
+- delete()  
+```java
+int delete(String statementName)
+int delete(String statementName, Object parameterObject)
+int delete(String statementName, Object parameterObject, int requiredRowsAffected) //영향 받은 로우 개수 체크
+```
+
+조회  
+- 단일 로우 조회: queryForObject()  
+```java
+Object queryForObject(String statementName)
+Object queryForObject(String statementName, Object parameterObject)
+Object queryForObject(String statementName, Object parameterObject, Object resultObject) // 결과를 매핑해서 돌려줄 오브젝트 제공
+```
+
+- 다중 로우 조회: queryForList()
+```java
+List queryForList(String statementName)
+List queryForList(String statementName, Object parameterObject)
+List queryForList(String statementName, int skipResults, int maxResults)
+List queryForList(String statementName, Object parameterObject, int skipResults, int maxResults)
+```
+
+- 다중 로우 조회: queryForMap()
+- 다중 로우 조회: queryWithRowHandler()
+
+#### SqlMapClientCallback
+스프링이 제공해주는 콜백이 내장된 템플리 메소드를 이용하는 대신 직접 iBatis의 SqlMapExecutor API를 사용하고 싶다면 SqlMapClientCallback 인터페이스를  
+사용할 수 있다. 
+
