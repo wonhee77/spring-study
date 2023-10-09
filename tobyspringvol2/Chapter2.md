@@ -283,3 +283,123 @@ List queryForList(String statementName, Object parameterObject, int skipResults,
 스프링이 제공해주는 콜백이 내장된 템플리 메소드를 이용하는 대신 직접 iBatis의 SqlMapExecutor API를 사용하고 싶다면 SqlMapClientCallback 인터페이스를  
 사용할 수 있다. 
 
+
+## 2.4 JPA
+JPA는 Java Persistent API의 약자로 JavaEE와 JavaSE를 위한 영속성관리와 O/R 매핑을 위한 표준 기술이다.  
+근본적으로 RDB와 자바오브젝트의 성격이 다르기 때문에 발생하는 많은 불일치가 있고, 이를 코드에서 일일이 다뤄줘야 하기 때문에 생산성과 품질 면에서 손해를 보기 쉽다.  
+
+#### EntityManagerFactory 등록 
+JPA 퍼시스턴스 컨텍스트에 접근하고 엔티티 인스턴스를 관리하려면 JPA의 핵심 인터페이스인 EntityManager를 구현한 오브젝트가 필요하다. 애플리케이션이 관리하는  
+EntityManager, 컨테이너가 관리하는 EntityManager 두 가지 방식으로 관리된다.  
+어떤 방식을 사용하든 반드시 EntityManagerFactory를 빈으로 등록해야 된다.
+
+LocalEntityManagerFactoryBean  
+스프링의 빈으로 등록한 DataSource를 사용할 수 없다는 점에서 제약이 있다.
+
+JavaEE5 서버가 제공하는 EntityManagerFactory  
+
+LocalContainerEntityManagerFactoryBean  
+스프링이 직접 제공하는 컨테이너 관리 EntityManager를 위한 EntityManagerFactory를 만들어준다. 이 빈은 META-INF/persistence.xml을 참고해서  
+퍼시스턴스 유닛과 이를 활용하는 EntityManagerFactory를 만든다.
+
+#### EntityManager와 JpaTemplate
+스프링에서는 템플릿 방식의 JpaTemplate뿐 아니라 JPA API를 직접 사용해 DAO를 작성할 수도 있다. JPA의 핵심 프로그래밍 인터페이스는 EntityManager다.  
+JPA DAO에서 EntityManager를 사용하는 네 가지 방법을 알아보자.  
+
+JdbcTemplate  
+실제로 스프링에서 JPA를 사용해 DAO를 작성할 때 이 JpaTemplate은 자주 사용되지 않는다.  
+```java
+public class MemberTemplateDao {
+    private JpaTemplate jpaTemplate;
+    
+    @Autowired
+    public void init(EntityManagerFactory emf) {
+        jpaTemplate = new JpaTemplate(emf);
+    }
+}
+```
+
+JpaDaoSupport 클래스를 상속해서 DAO를 만들면 getJpaTemplate() 메소드를 이용해 jpaTemplate을 가져올 수 있다.   
+JpaTemplate을 사용할 때는 기본적으로 JpaCallback 인터페이스의 doInJpa() 메소드에 필요한 작업을 넣는다.
+
+```java
+List<Member> ms = templateDao.jpaTemplate.execute(new JpaCallback<List<Member>>() {
+    public List<Member> doInJpa(EntityManager entityManager) throws PersistanceException {
+        return entityManager.createQuery("selet m from Member m").getResultList();
+        }
+        })
+```
+
+JpaTemplate은 콜백 오브젝트 없이도 간단한 메소드를 이용해서 EntityManager가 제공하는 대부분의 기능을 사용하게 해준다.  
+```java
+Member m = new Member(1, "Spring", 8.9);
+jpaTemplate.persis(m);
+Member m2 = templateDao.jpaTemplate.find(Member.clss, 1);
+```
+
+#### 애플리케이션 관리 EntityManager와 @PersistenceUnit  
+EntityManager를 사용하는 두 번째 방법은 컨테이너 대신 애플리케이션 코드가 관리하는 EntityManager를 이용하는 것이다.  
+EntityManager는 EntityManagerFactory가 있다면 다음과 같이 직접 생성할 수 있다.  
+```java
+EntityManager em = entityManagerFactory.createEntityManger();
+```
+
+다만 컨테이너가 관리하지 않는 EntityManager이므로 트랜잭션은 직접 시작하고 종료해야 한다.
+```java
+em.getTransaction().begin();
+em.getTransaction().commit();
+```
+
+DAO 클래스에 EntityManagerFactory를 DI 하는 방법은 두 가지가 있다.  
+- @Autowired, @Resource  
+- @PersistenceUnit  
+스프링의 DI 방식 대신 JPA 표준 스펙에 나온 방식을 이용하는 것이다. 이때 사용되는 애노테이션은 javax.persistence 패키지의 @PersistenceUnit이다.
+  
+```java
+public class MemberDao {
+    @PersistanceUnit EntityManagerFactory emf;
+}
+```
+
+이렇게 만들어진 DAO 코드가 @Autowired를 이용했을 때와 다른 점은 스프링 프레임워크에 의존도가 전혀 없는 순수한 JPA 코드라는 것이다. 그런데 이 방법은 자주  
+쓰이지는 않는다.
+
+컨테이너 관리 EntityManager와 @PersistenceContext  
+EntityManager를 사용해 JPA 코드를 작성하는 가장 대표적인 방법은 컨테이너가 제공하는 EntityManager를 직접 제공받아서 사용하는 것이다. JPA의  
+@PersistenceContext 애노테이션을 사용하면 된다.
+
+```java
+public class MemberDao {
+    @PersistenceContext EntityManager em;
+    
+    public void addMember(Member member) {
+        em.persist(member);
+    }
+}
+```
+
+EntityManger는 그 자체로 멀티스레드에서 공유해서 사용할 수 없다. 사용자의 요청에 따라 만들어지는 스레드별로 독립적인 EntityManager가 만들어져 사용돼야 한다.  
+이렇게 인스턴스 변수에 한 번 DI 받아놓고 같은 오브젝트를 여러 스레드가 동시에 사용할 수 있는 이유는 @PersistenceContext로 주입되는 EntityManger는 실제가  
+아니라 현재 진행 중인 트랜잭션에 연결되는 퍼시스턴스 컨텍스트를 갖는 일종의 프록시이기 때문이다. 컨테이너가 관리하는 EntityManger는 스코프 빈과 비슷한 방식으로  
+동작한다. 실제 EntityManager 오브젝트는 현재 스레드와 연결된 트랜잭션에 따라서 독립적으로 만들어지고 그 범위 안에서 존재하다가 제거된다.
+
+@PersistenceContext와 확장된 퍼시스턴스 컨텍스트  
+@PersistenceContext 애노테이션을 별도의 설정 없이 사용하면 디퐅트 값인 PersistenceContextType.TRANSACTION이 적용되면서 트랜잭션 스코프의  
+퍼시스턴스 컨텍스트로 EntityManager가 만들어지고 관리된다고 했다. 마지막 방법은 이 type을 PersistenceContextType.EXTENDED로 지정하는 것이다.  
+이렇게 하면 트랜잭션 스코프 대신 확장된 스코프를 갖는 EntityManager가 만들어진다. JPA에서 이 확장된 퍼시스턴스 컨텍스트는 상태유지 세션빈에 바인딩되는 것을  
+말한다.  
+상태유지 세션빈은 사용자별로 독립적이며 장기간 보존되는 오브젝트로 만들어진다. 이 세션빈에 바인딩되는 EntityManager 역시 사용자별로 독립적으로 만들어지고 장기간  
+보존된다. 따라서 이 방식은 스프링의 싱글톤에는 사용할 수 없고 상태를 가진 세션빈이나 장기간 지속되는 스코프 빈에만 사용될 수 있다. 
+
+JPA 예외 변환 AOP  
+DAO의 메소드에 적용되는 AOP를 이용해서 JAP API가 던지는 JPA 예외를 스프링의 예외로 전환해주는 부가기능을 추가해줄 수 있다.  
+- @Repository 
+먼저 예외 변환이 필요한 DAO 클래스에 @Repository 애노테이션을 부여한다. @Repository가 붙은 DAO 클래스의 메소드는 AOP를 이용한 예외 변환 기능이 부가될  
+  빈으로 선정된다.
+  
+- PersistenceExceptionTranslationPostProcessor  
+다음은 @Repository 애노테이션이 붙은 빈을 찾아서 예외 변환 기능을 가진 AOP 어드바이스를 적용해주는 후처리기가 필요하다. 간단히 빈으로 등록해주기만 하면 된다.  
+  
+JPA는 데이터 엑스스 프로그래밍의 패러다임이 다르기 때문에 JDBC를 사용했을 때처럼 다양한 DataAccessException의 서브클래스로 매핑돼서 던져지리라고 기대할 수  
+없다. 
+
