@@ -408,3 +408,96 @@ JPA는 데이터 엑스스 프로그래밍의 패러다임이 다르기 때문�
 하이버네이트의 창시자인 개빈 킹은 하이버네이트의 경험을 바탕으로 표준 ORM 기술인 JPA 스펙의 초안을 작성하고 전문가 그룹에 참여해서 지금까지 JPA 표준의 발전에  
 많은 영향을 미쳐오고 있다. 하이버네이트는 그 자체로 독립적인 API와 기능을 가진 ORM 제품이면서 동시에 JPA의 핵심 구현 제품이기도 하다. 이 절에서는 JPA 구현  
 엔진으로서가 아니라 하이버네이트 자체 API를 사용하는 DAO를 작성하는 방법을 다룬다.  
+
+
+## 2.6 트랜잭션 
+선언적 트랜잭션 경계설정 기능을 이용하면 코드 내에서 직접 트랜잭션을 관리하고 트랜잭션 정보를 파라미터로 넘겨서 사용하지 않아도 된다. 트랜잭션이 시작되고 종료되는  
+지점은 별도의 설정을 통해 결정된다. 선언적 트랜잭션 경계설절을 사용하면, 결국 코드의 중복을 제거하고 작은 단위의 컴포넌트로 쪼개서 개발한 후에 이를 조합해서 쓸 수  
+있다.  
+EJB의 이런 선언적 트랜잭션 기능을 복잡한 환경이나 구현조건 없이 평범한 POJO로 만든 코드에 적용하게 해주는 것이 바로 스프링이다. 
+
+#### 트랜잭션 추상화와 동기화
+스프링이 제공하는 트랜잭션 서비스는 트랜잭션 추상화와 트랜잭션 동기화 두 가지로 생각해볼 수 있다.  
+스프링은 데이터 액세스 기술과 트랜잭션 서비스 사이의 종속성을 제거하고 스프링이 제공하는 트랜잭션 추상 계층을 이용해서 트랜잭션 기능을 활용하도록 만들어준다. 이를  
+통해 트랜잭션 서비스의 종류나 환경이 바뀌더라도 트랜잭션을 사용하는 코드는 그대로 유지할 수 있는 유연성을 얻을 수 있다.  
+스프링의 트랜잭션 동기화는 트랜잭션을 일정 범위 안에서 유지해주고, 어디서든 자유롭게 접근할 수 있게 만들어준다.
+
+PlatformTransactionManager  
+스프링 트랜잭션 추상화의 핵심 인터페이스는 PlatformTransactionManager이다. 모든 스프링의 트랜잭션 기능과 코드는 이 인터페이스를 통해서 로우레벨의 트랜잭션  
+서비스를 이용할 수 있다.  
+```java
+public interface PlatformTransactionManager {
+    TransactionStatus getTransaction(TransactionDefinition definition) throws TransactionException;
+    void commit(TransactionStatus status) throws TransactionException;
+    void rollback(TransactionStatus status) throws TransactionException;
+}
+```
+
+PlatformTransactionManager는 트랜잭션 경계를 지정하는 데 사용한다. 트랜잭션을 시작한다는 의미의 begin()과 같은 메소드 대신 적절한 트랜잭션을 가져온다는  
+의미의 getTransaction() 메소드를 사용한다. getTransaction()은 트랜잭션 속성에 따라서 새로 시작하거나 진행 중인 트랜잭션에 참여하거나, 진행 중인  
+트랜잭션을 무시하고 새로운 트랜잭션을 만드는 식으로 상황에 따라 다르게 동작한다.  
+TransactionDefinition은 트랜잭션의 네 가지 속성을 나타내는 인터페이스다. TransactionStatus는 현재 참여하고 있는 트랜잭션의 ID와 구분정보를 담고 있다.  
+커밋 또는 롤백 시에 이 TransactionStatus를 사용한다.
+
+트랜잭션 매니저의 종류
+스프링이 제공하는 PlatformTransactionManager 구현 클래스를 살펴보자. 
+
+- DataSourceTransactionManager  
+Connection의 트랜잭션 API를 이용해서 트랜잭션을 관리해주는 트랜잭션 매니저다. 이 트랜잭션 매니저를 사용하려면 트랜잭션을 적용할 DataSource가 스프링의 빈으로  
+  등록돼야 한다. 
+  
+- JpaTransactionManager  
+JPA를 이용하는 DAO에는 JpaTransactionManager를 사용한다.
+  
+- HibernateTransactionManager  
+- JmsTransactionManager, CciTransactionManager  
+- JtaTransactionManager
+
+#### 트랜잭션 경계설정 전략
+트랜잭션 경계를 설정하는 방법은 코드에 의한 프로그램적인 방법과, AOP를 이용한 선언적인 방법으로 구분할 수 있다. 전자는 트랜잭션을 다루는 코드를 직접 만들고, 후자는  
+AOP를 이용해 기존 코드에 트랜잭션 경계설정 기능을 부여해준다.  
+
+코드에 의한 트랜잭션 경계설정  
+스프링의 트랜잭션 매니저는 모두 PlatformTransactionManager를 구현하고 있다. 따라서 이 인터페이스로 현재 등록되어 있는 트랜잭션 매니저 빈을 가져올 수 있다면  
+트랜잭션 매니저 종류에 상관없이 동일한 방식으로 트랜잭션을 제어하는 코드를 만들 수 있다. PlatformTransactionManager를 직접 사용하면 try/catch문을  
+사용해야하기 때문에 직접 사용하는 대신 템플릿/콜백 방식의 TransactionTemplate를 이용하면 편리하다.  
+코드에 의한 트랜잭션은 실제로는 많이 사용되지 않고 테스트에서 의도적으로 필요로 할 때 주로 사용한다.  
+
+선언적 트랜잭션 경계설정  
+선언적 트랜잭션을 이용하면 코드에는 전혀 영향을 주지 않으면서 특정 메소드 실행 전후에 트랜잭션이 시작되고 종료되거나 기존 트랜잭션에 참여하도록 만들 수 있다.  
+이를 위해서는 데코레이터 패턴을 적용한 트랜잭션 프록시 빈을 사용해야 한다.  
+트랜잭션은 다음과 같은 두가지 방법이 가장 많이 사용된다.
+
+1. aop와 tx 네임스페이스
+
+스프링은 AOP 기능과 트랜잭션 설정을 위해 편리하게 사용할 수 있는 전용 태그를 제공한다. aop 스키마의 태그와 tx 스키마의 태그를 사용할 수 있다.  
+어떤 부가기능을 사용할지 결정하는 어드바이스가 있어야하고 어드바이스를 적용할 대상을 선정하는 포인트컷이 필요하다. 트랜잭션 어드바이스와 포인트컷을 결합해서 하나의  
+AOP 모듈을 정의한다. 이 모듈을 스프링에서는 어드바이저라고 부른다.  
+트랜잭션을 적용하려면 트랜잭션 매니저가 필요하다. 
+```xml
+<tx:advicce id="txAdvice" transaction-manager="transactionManager">
+  <tx:attributes>
+    <tx:method name="*" />
+  </tx:attributes>
+</tx:advicce>
+```
+
+어드바이스가 준비됐으니 다음은 포인트컷을 정의할 차례다. 포인트컷은 AspectJ 표현식을 사용하는 것이 가장 편하다. aop 스키마의 pointcut 태그를 사용하면 된다.  
+```xml
+<aop:pointcut id="txPointcut" expression="execution(* *..MemberDao.*(..))"/>
+```
+
+포인트컷은 기본적으로 인터페이스에 적용된다. 스프링 AOP의 동작 원리인 JDK 다이내믹 프록시는 인터페이스를 이용해 프록시를 만들기 때문이다.  
+다음은 어드바이저를 정의할 차례다.  
+```xml
+<aop:config>
+  <aop:pointcut id="txPointcut" expression="execution(* *..MemberDao.*(..))"/>
+  <aop:advisor advice-ref="txAdvice" pointcut-ref="txPointcut"/>
+</aop:config>
+```
+
+2. @Transactional
+
+명시적인 방법에서는 설정파일에 명시적으로 포인트컷과 어드바이스를 정의하지 않는다. `<tx:annotation-driven/>` 한줄만 추가하면 된다.  
+메소드에 @Transactional이 있으면 클래스 레벨의 @Transactional 선언보다 우선해서 적용된다.  
+@Transactional을 적용하는 우선순위는 클래스의 메소드, 클래스, 인터페이스의 메소드, 인터페이스 순이다.
