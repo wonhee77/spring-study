@@ -584,3 +584,19 @@ AOP 방식: 프록시와 AspectJ
 #### 2.6.4 데이터 엑세스 기술 트랜잭션의 통합  
 두 가지 이상의 데이터 액세스 기술을 하나의 DAO에서 하나의 트랜잭션으로 사용하고 싶을 수 있다. 스프링은 두 개 이상의 데이터 액세스 기술로 만든 DAO를 하나의  
 트랜잭션으로 묶어서 사용하는 방법을 제공한다.
+
+
+## 2.7 스프링 3.1의 데이터 액세스 기술
+스프링의 서브 프로젝트인 스프링의 데이터 프로젝트는 여러 기술들을 어플리케이션에서 손쉽게 사용할 수 있게 도와주는 모듈을 제공한다. 
+
+### 2.7.1 persistence.xml 없이 JPA 사용하기  
+JPA에서는 META-INFO/presistence.xml 파일을 이용해 퍼시스턴트 유닛을 정의하고, 이를 이용해 EntityFactoryManager를 생성한다. 스프링은  
+LocalContainerEntityManagerFactoryBean 등을 이용해서 persistence.xml에 넣어야할 DB 연결정보나 트랜잭션 광련 정보를 생략하고, 관련된 스프링의  
+빈을 대신 사용할 수 있게 해준다.  
+스프링 3.1에서는 스프링의 클래스 스캐닝 기술을 이용해 JPA 엔터티 클래스를 찾아 자동으로 등록하는 방법이 지원된다. 이를 적용하면 persistence.xml 파일을  
+아예 생략할 수도 있다.  
+사용 방법은 JPA 엔터티 클래스가 담긴 패키지를 LocalContainerEntityManagerFactoryBean 빈의 packagesToScan 프로퍼티에 넣어주면 된다.
+
+### 2.7.3 @EnableTransactionManager
+XML의 `<tx:annotation-driven/>`과 동일한 컨테이너 인프라 빈을 등록해주는 자바 코드 설정용 애노테이션이다. @Transactional을 이용한 트랜잭션 설정을  
+가능하게 해준다.
