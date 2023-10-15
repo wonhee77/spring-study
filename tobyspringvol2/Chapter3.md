@@ -80,3 +80,118 @@ DispatcherServlet이 컨트롤러로 부터 모델과 뷰를 받은 뒤에 진�
 웹어플리케이션 컨텍스트를 구성하는 방법은 크게 세 가지가 있다. 그중 가장 보편적으로 사용되는 루트 컨텍스트와 서블릭 컨텍스트 두 개의 웹 애플리케이션 컨텍스트를  
 사용하는 방법을 적용해보자. 서블릿 컨텍스트가 루트 컨텍스트를 부모 컨텍스트로 가지고, 자식 컨텍스트는 부모 컨텍스트를 참조할 수 있지만 그 반대는 안된다.  
 
+
+## 3.3 컨트롤러 
+서블릿이 넘겨주는 HTTP 요청은 HttpServletRequest 오브젝트에 담겨있다. 컨트롤러가 이를 이용해 사용자의 요청을 파악하려면 클라이언트 호스트, 포트, URI,  
+쿼리스트링, 폼 파라미터, 쿠키, 헤더, 세션을 비롯해서 서블릿 컨테이너가 요청 애트리뷰트로 전달해주는 것까지 매우 다양한 정보를 참고해야 한다.  
+컨트롤러가 요청을 받아주고 응답을 주는 등 수 많은 일을 해야되기 때문에 스프링 MVC가 컨트롤러 모델을 미리 제한하지 않고 어댑터 패턴을 사용해서라도 컨트롤러의 종류를  
+필요에 따라 확장할 수 있도록 만든 이유가 바로 이 때문이다. DispatcherServlet의 전략 패턴을 통한 유연함의 가치가 가장 잘 드러나는 영역이 바로 컨트롤러다.  
+이 절에서는 스프링 MVC가 제공하는 컨트롤러의 종류와 그에 따른 핸들러 어댑터를 알아보고, 필요에 따라 컨트롤러를 설계하고 만드는 법을 알아본다. 그리고 URL과  
+핸들러를 연결해주는 핸들러 매핑에 대해서도 자세히 설명한다. 
+
+### 3.3.1 컨트롤러의 종류와 핸들러 어댑터 
+스프링 MVC가 지원하는 컨트롤러의 종류는 네 가지다. 각 컨트롤러를 DispatcherServlet에 연결해주는 핸들러 어댑터가 하니씩 있어야 하므로, 핸들러 어댑터도 네 개다.  
+이 중에서 SimpleServletHandlerAdapter를 제외한 세 개의 핸들러 어댑터는 DispatcherServlet의 디폴트 전략으로 설정되어 있다.
+
+#### Servlet과 SimpleServletHandlerAdapter 
+첫 번째 컨트롤러 타입은 표준 서블릿이다. 표준 서블릿 인터페이스인 javax.servlet.Servlet을 구현한 서블릿 클래스를 스프링 MVC의 컨트롤러로 사용할 수 있다.  
+서블릿을 web.xml에 등록하지 않고 컨트롤러에 등록했을 때의 장점은 서블릿 클래스 코드를 그대로 유지하면서 스프링 빈으로 등록된다는 점이다.  
+서블릿을 스프링 MVC 컨트롤러로 사용하는 간단한 테스트 코드를 만들어보자.  
+```java
+public class ServletControllerTest extends AbstractDispatcherServletTest {
+    @Test
+   public void helloServletController() throws ServletException, IOException {
+        setClass(SimpleServletHandlerAdapter.class, HelloServlet.class); // 핸들러 어댑터와 컨트롤러를 빈으로 등록
+       initRequest("/hello").addParameter("name", "Spring");
+    }
+
+   @Component("/hello")
+   static class HelloServlet extends HttpServlet {
+      protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+         String name = req.getParameter("name");
+         resp.getWriter().print("Hello" + name);
+      }
+   }
+}
+```
+
+먼저 할 일은 서블릿 타입의 컨트롤러를 DispatcherServlet이 호출해줄 때 필요한 핸들러 어댑터를 등록하는 것이다. 
+핸들러 어댑터가 빈으로 등록되어 있으면 DispatcherServlet은 이를 자동으로 감지해 디폴트 핸들러 어댑터를 대신해서 사용한다.  
+AbstractDispatcherServletTest는 XML 설정파일 없이도 빈 클래스를 직접 제공해주는 방식으로 서블릿 컨텍스트에 빈을 등록할 수 있다. 그래서 이번 테스트에서는  
+핸들러 어댑터를 setClasses() 메소드에 전달해서 빈으로 바로 등록해줬다.  
+서블릿으로 만들어진 컨트롤러 빈도 등록해준다. 여기서 @Component는 빈 스캐닝 전략을 위해서가 아니라 단지 이름을 붙여주려고 사용했다.  
+Servlet 타입의 컨트롤러는 모델과 뷰를 반환하지 않는다. 스프링 MVC의 모델과 뷰라는 개념을 알지 못하는 표준 서블릿을 그대로 사용한 것이기 때문이다. 그래서 결과는  
+서블릿에서 HttpServletResponse에 넣어준 정보를 확인하는 방법을 사용한다. 
+
+#### HttpRequestHandler와 HttpRequestHandlerAdapter
+HttpRequestHandler는 인터페이스로 정의된 컨트롤러 타입이다. 이 인터페이스를 구현해서 컨트롤러를 만든다.  
+```java
+public interface HttpRequestHandler {
+    void handlerRequest(HttpSevletRequest request, HttpServletResponse response) throws SevletException, IOException;
+}
+```
+
+서블릿 인터페이스와 비슷하다. 실제로 서블릿처럼 동작하는 컨트롤러를 만들기 위해 사용한다. 전형적인 서블릿 스펙을 준수할 필요 없이 HTTP 프로토콜을 기반으로 한 전용  
+서비스를 만들려고 할 때 사용할 수 있다.  
+HttpRequestHandler는 모델과 뷰 개념이 없는 Http 기반의 RMI 같은 로우레벨 서비스를 개발할 때 이용할 수 있다는 사실 정도만 기억하고 넘어가자.  
+HttpRequestHandlerAdapter는 디폴트 전략이므로 빈으로 등록해줄 필요는 없다.  
+
+#### Controller와 SimpleControllerHandlerAdapter
+```java
+public interface Controller {
+    ModelAndView handleRequest(HttpServletRequest request, HttpServletResponse response) throws Exception;
+}
+```
+
+Controller 컨트롤러는 DispatcherServlet이 컨트롤러와 주고받는 정보를 그대로 메소드의 파라미터와 리턴 값으로 갖고 있다. 따라서 스프링 MVC의 가장 대표적인  
+컨트롤러 타입이라고 볼 수 있다. 스프링 3.0의 애노테이션과 관례를 이용한 컨트롤러가 본격적으로 등장하기 전까지, 스프링 MVC 컨트롤러라고 하면 바로 이 Controller를  
+들 수 있을 만큼 많이 사용되는 컨트롤러였다.  
+Controller 타입의 컨트롤러는 인터페이스를 구현하기만 하면 되기 때문에 특정 클래스를 상속하도록 강제하는 여타 MVC 프레임워크의 컨트롤러보다 유연하게 컨트롤러  
+클래스를 설계할 수 있다는 장점이 있다. 하지만 웹브라우저를 클라이언트로 갖는 컨트롤러로서의 필수 기능이 구현되어 있는 AbstractController를 상속해서 컨트롤러를  
+만드는게 편리하기 때문에 이 방법이 권장 된다. AbstractController는 다음과 같은 웹 개발에 유용하게 쓸 수 있는 프로퍼티를 제공해준다. 
+- synchronizeOnSession  
+사용자가 자신의 HTTP 세션에 동시에 접근하는 것을 막아준다.
+  
+- supportedMethods  
+컨트롤러가 허용하는 HTTP 메소드를 지정할 수 있다. 
+  
+- useExpiredHeader, userCacheControlHeader, useCacheControlNoStore, cacheSeconds  
+이 네가지 프로퍼티는 HTTP 1.0/1.1의 Expires, Cahce-Control HTTP 헤더를 이용해서 브라우저의 캐시 설정정보를 보내줄 것인지를 결정한다.
+  
+컨트롤러의 구현 코드에서 비슷한 코드가 반복적으로 등장한다면, 이를 그대로 두지말고 공통적인 부분을 뽑아내서 기반 컨트롤러를 만들어야 한다. 
+
+#### AnnotationMethodHandlerAdapter
+다른 핸들러 어댑터와는 다르게 지원하는 컨트롤러의 타입 정해져 있지 않다. 다른 핸들러 어댑터는 특정 인터페이스를 구현한 컨트롤러만 지원한다.  
+이 어댑터는 컨트롤러 타입에는 제한이 없지만 클래스와 메소드에 붙은 몇가지 애노테이션의 정보와 메소드 이름, 파라미터, 리턴 타입에 대한 규칙 등을 종합적으로 분석해서  
+컨트롤러를 선별하고 호출 방식을 결정한다.  
+또 다른 특징은 컨트롤러 하나가 하나 이상의 URL에 매핑될 수 있다는 점이다. 여타 컨트롤러는 특정 인터페이스를 구현하면 그 인터페이스의 대표 메소드를 통해 컨트롤러가  
+호출되기 때문에, 특별한 확장 기능을 사용하지 않으면 URL당 하나의 컨트롤러가 매핑된다. 이러면 요청 개수에 따라 컨트롤러의 숫자도 급격하게 늘어난다.  
+AnnotationMethodHandlerAdapter는 DefaultAnnotationHandlerMapping 핸들러 매핑과 함께 사용해야 한다. 두 가지 모두 동일한 어노테이션을 사용하기  
+때문이다.
+
+```java
+@Controller
+public class HelloController {
+    @RequestMapping("/hello")
+   public String hello(@RequestParam("name") String name, ModelMap map) {
+        map.put("message", "Hello " + name);
+        return "/WEB_INF/view/hello.jsp"
+    }
+}
+```
+
+### 3.3.2 핸들러 매핑
+핸들러 매핑은 HTTP 요청정보를 이용해서 이를 처리할 핸들러 오브젝트, 즉 컨트롤러를 찾아주는 기능을 가진 DispatcherServlet의 전략이다. 하나의 핸들러 매핑  
+전략이 여러 가지 타입의 컨트롤러를 선택할 수 있다. 스프링은 기본적으로 다섯 가지 핸들러 매핑을 제공한다.  
+이 중에서 디폴트로 등록된 핸들러 매핑은 BeanNameUrlHandlerMapping과 DefaultAnnotationHandlerMappping이다. 그 외의 핸들러 매핑을 사용하려면  
+핸들러 매핑 클래스를 빈으로 등록해줘야 한다. 
+
+#### BeanNameUrlHandlerMapping  
+빈의 이름에 들어 있는 URL을 HTTP 요청의 URL과 비교해서 일치하는 빈을 찾아준다.  
+예를 들어 다음 빈 선언은 /s로 시작하는 /s, /sl, /sabcd 같은 URL에 매핑된다.
+```xml
+<bean name="/s*" class="springbook...Contoller"></bean>
+```
+
+#### ControllerBeanNameHandlerMapping
+이 핸들러 매핑은 빈의 아이디나 빈 이름을 이용해 매핑해주는 핸들러 매핑 전략이다.
