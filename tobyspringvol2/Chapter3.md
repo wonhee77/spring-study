@@ -176,7 +176,7 @@ public class HelloController {
    public String hello(@RequestParam("name") String name, ModelMap map) {
         map.put("message", "Hello " + name);
         return "/WEB_INF/view/hello.jsp"
-    }
+    }s
 }
 ```
 
@@ -195,3 +195,59 @@ public class HelloController {
 
 #### ControllerBeanNameHandlerMapping
 이 핸들러 매핑은 빈의 아이디나 빈 이름을 이용해 매핑해주는 핸들러 매핑 전략이다.
+
+#### ControllerClassNameHandlerMapping
+빈 이름 대신 클래스 이름을 URL에 매핑해주는 핸들러 매핑 클래스다.
+
+#### SimpleUrlHandlerMapping
+URL과 컨트롤러의 매핑정보를 한 곳에 모아놓을 수 있는 핸들러 매핑 전략이다.
+
+#### DefaultAnnotationHandlerMapping
+@RequestMapping이라는 애노테이션을 컨트롤러 클래스나 메소드에 직접 부여하고 이를 이용해 매핑하는 전략이다. 메소드 단위로 URL을 매핑해줄 수 있어서 컨트롤러의  
+개수를 획기적으로 줄일 수 있다는 장점이 있다. 또한 URL 뿐 아니라 GET/POST와 같은 HTTP 메소드, 파라미터와 HTTP 헤더정보까지 매핑에 활용할 수 있다. 
+
+#### 기타 공통 설정정보
+order  
+핸들러 매핑은 한 개 이상을 동시에 사용할 수 있다. 중복되는 경우 우선 순위를 설정할 수 있다.
+
+defaultHandler  
+URL을 매핑할 대상을 찾지 못했을 경우 자동으로 디폴트 핸들러를 선택해준다.
+
+alwaysUseFullPath  
+
+
+### 3.3.3 핸들러 인터셉터
+핸들러 매핑의 역할은 기본적으로 URL과 요청정보로부터 컨트롤러 빈을 찾아주는 것이다. 그런데 한가지 중요한 기능이 더 있다. 핸들러 인터셉터를 적용해주는 것이다.  
+핸들러 인터셉터는 DispatcherServlet이 컨트롤러를 호출하기 전과 후에 요청과 응답을 참조하거나 가공할 수 있는 일종의 필터다. 서블릿 필터와 유사한 개념이라고 보면  
+된다.  
+핸들러 매핑의 역할은 URL로부터 컨트롤러만 찾아주는 것이 아니다. 핸들러 매핑은 DispatcherServlet으로부터 매핑 작업을 요청받으면 그 결과로 핸들러 실행 체인  
+(HandlerExecutionChain)을 돌려준다. 이 핸들러 실행 체인은 하나 이상의 핸들러 인터셉터를 거쳐서 컨트롤러가 실행될 수 있도록 구성되어 있다.  
+핸들러 인터셉터는 서블릿 필터와 그 쓰임새가 유사하지만 핸들러 인터셉터는 HttpServletRequest, HttpServletResponse 뿐 아니라, 실행될 컨트롤러 빈 오브젝트,  
+컨트롤러가 돌려주는 ModelAndView, 발생한 예외 등을 제공받을 수 있기 때문에 서블릿 필터보다 더 정교하고 편리하게 인터셉터를 만들 수 있다.
+
+#### HandlerInterceptor
+핸들러 인터셉터는 HandlerInterceptor 인터페이스를 구현해서 만든다. 이 인터페이스 안에는 세 개의 메소드가 포함되어 있다.
+
+- boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object Handler) throws Exception  
+이 메소드는 컨트롤러가 호출되기 전에 실행된다. 컨트롤러 실행 이전에 처리해야 할 작업이 있거나 로그를 남기기 위해 사용한다.  
+  리턴 값이 true면 핸들러 실행 체인의 다음 단계로 진행되고 false면 작업을 중단한다.
+  
+- boolean postHandle(HttpServletRequest request, HttpServletResponse response, Object Handler,
+  ModelAndView modelAndView) throws Exception  
+  후처리 작업을 진행할 수 있다.
+
+- boolean afterCompletion(HttpServletRequest request, HttpServletResponse response, Object Handler,
+  Exception ex) throws Exception  
+  모든 뷰에서 최종 결과를 생성하는 일을 포함한 모든 작업이 다 완료된 후에 실행된다.
+  
+핸들러 인터셉터는 하나 이상을 등록할 수 있다. preHandler()은 인터셉터가 등록된 순으로 실행되고 postHandler()는 반대로 실행된다.
+
+#### 핸들러 인터셉터 적용
+핸들러 인터셉터를 사용하려면 먼저 핸들러 매핑 클래스를 빈으로 등록해야 한다. 핸들러 매핑 빈의 interceptors 프로퍼티를 이용해 핸들러 인터셉터 빈의 레퍼런스를  
+넣어주면 된다.  
+핸들러 인터셉터는 서블릿 필터와 기능이나 용도가 비슷하다. 그래서 둘 중 어떤 것을 사용할지 신중하게 선택해야 한다.  
+서블릿 필터는 web.xml에 별도로 등록해줘야 하고 필터 자체는 스프링의 빈이 아니다. 반면에 모든 요청에 적용된다는 장점이 있다.  
+핸들러 인터셉터는 적용 대상이 DispatcherServlet의 특정 핸들러 매핑으로 제한된다는 제약이 있지만 스프링의 빈으로 등록할 수 있고, 컨트롤러 오브젝트와  
+ModelAndView와 같은 정보를 사용할 수 있다는 장점이 있다.
+  
+
