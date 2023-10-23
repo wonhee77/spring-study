@@ -251,3 +251,56 @@ alwaysUseFullPath
 ModelAndView와 같은 정보를 사용할 수 있다는 장점이 있다.
   
 
+## 3.4 뷰
+뷰는 MVC 아키텍처에서 모델이 가진 정보를 어떻게 표현해야 하는지에 대한 로직을 갖고 있는 컴포넌트다.  
+컨트롤러가 작업을 마친 후 뷰 정보를 ModelAndView 타입 오브젝트에 담아서 DispatcherServlet에 돌려주는 방법은 두 가지가 있다. 첫째는 View 타입의 오브젝트를  
+돌려주는 방법이고, 두 번째는 뷰 이름을 돌려주는 방법이다. 뷰 이름을 돌려주는 경우는 뷰 이름으로부터 실제 이름을 '논리적인 뷰 이름'이라고 부르기도 한다. 논리적인  
+이름을 실질적인 뷰 오브젝트로 바꿔주기 때문이다.  
+스프링이 지원하는 뷰와 뷰 리졸버의 종류를 알아보고 그 활용법을 살펴보자. 
+
+### 3.4.1 뷰
+DispatcherServlet이 사용하는 뷰 오브젝트는 스프링의 View 인터페이스를 구현해야 한다. 
+```java
+package org.springframework.web.servlet;
+
+public interface View {
+    String getContentType();
+    
+    void render(Map<String, ?> model, HttpServletRequest request, HttpServletResponse response) throws Exception;
+}
+```
+
+스프링이 웹에서 자주 사용되는 타입의 콘텐트를 생성해주는 다양한 뷰를 이미 구현해놓았기 때문에 View 인터페이스를 직접 구현해서 뷰를 만들어야 할 필요는 없다.  
+뷰를 사용하는 방법은 두 가지가 있다. 하나는 스프링이 제공하는 기반 뷰 클래스를 확장해서 뷰를 만드는 방법이다. PDF, RSS 피드와 같은 뷰는 콘텐트를 생성하는 API를  
+사용해서 뷰 로직을 작성한다. 다른 방법은 스프링이 제공하는 뷰를 활용하되 뷰 클래스 자체를 상속하거나 코드를 작성하지는 않고, JSP나 프리마커 같은 템플릿 파일을  
+사용하거나 모델을 자동으로 뷰로 전환하는 로직을 적용하는 방법이다.  
+스프링에서 제공하는 주요 뷰와 그 사용 방법을 살펴보자.
+
+#### InternalResourceView와 JstlView
+InternalResourceView는 RequestDispatcher의 forward()나 include()를 이용하는 뷰다. forward()나 include()는 다른 서블릿을 실행해서 그  
+결과를 현재 서블릿의 결과로 사용하거나 추가하는 방식이다. 서블릿을 forward() 용도로 사용하는 일은 드물기 때문에 주로 JSP 서블릿을 통해 JSP 뷰를 적용할 때  
+사용한다.  
+JstlView는 internalResourceView의 서브클래스다. JSP를 뷰 템플릿으로 사용할 때는 JstlView를 이용하면 여러 가지 추가 기능을 활용할 수 있어서 편리하다.
+
+#### RedirectView
+RedirectView는 HttpServletResponse의 sendRedirect()를 호출해주는 기능을 가진 뷰다. 따라서 실제 뷰가 생성되는 것이 아니라, URL만 만들어져 다른  
+페이지로 리다이렉트 된다. 모델정보가 있다면 URL 뒤에 파라미터로 추가된다.
+
+#### VelocityView, FreeMarkerView
+자바 템플릿 엔진을 뷰로 사용하게 해준다.
+
+#### MarshallingView 
+OXM 추상화 기능을 활용해서 application/xml 타입의 XML 콘텐트를 작성하게 해주는 편리한 뷰다.
+
+### 3.4.2 뷰 리졸버
+뷰 리졸버는 핸들러 매핑이 URL로 부터 컨트롤러를 찾아주는 것처럼, 뷰 이름으로부터 사용할 뷰 오브젝트를 찾아준다. 뷰 리졸버는 ViewResolver 인터페이스를 구현해서  
+만들어진다. 뷰 리졸버를 빈으로 등록하지 않는다면 DispatcherServlet의 디폴트 뷰 리졸버인 InternalResourceViewResolver가 사용된다. 핸들러 매핑과  
+마찬가지로 뷰 리졸버도 하나 이상을 빈으로 등록해서 사용할 수 있다. 이때는 order 프로퍼티를 이용해 뷰 리졸버의 적용 순서를 지정해주는게 좋다.
+
+#### InternalResourceViewResolver
+주로 JSP를 뷰로 사용하고자 할 때 쓰인다. 디폴트 상태의 InternalResourceViewResolver를 사용할 경우 /WEB-INF/view/hello.jsp를 뷰로 이용하려면  
+전체 경로를 다 적어줘야 한다. 하지만 이보다는 prefix, suffix 프로퍼티를 이용해서 항상 앞뒤에 붙는 내용을 생략할 수 있다. 프로퍼티 설정을 해주려면 결국 이  
+viewResolver를 직접 빈으로 등록하는 수 밖에 없다.
+
+
+
