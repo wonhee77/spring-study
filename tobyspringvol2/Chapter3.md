@@ -303,4 +303,62 @@ OXM 추상화 기능을 활용해서 application/xml 타입의 XML 콘텐트를 
 viewResolver를 직접 빈으로 등록하는 수 밖에 없다.
 
 
+## 3.5 기타 전략
+
+### 3.5.1 핸들러 예외 리졸버
+HandlerExceptionResolver는 컨트롤러의 작업 중에 발생한 예외를 어떻게 처리할지 결정하는 전략이다.  
+컨트롤러나 그 뒤의 계층에서 던져진 예외는 DispatcherServlet이 일단 전달받은 뒤에 다시 서블릿 밖으로 던져서 서블릿 컨테이너가 처리하게 될 것이다. 다른 설정을  
+하지 않았다면 브라우저에 'HTTP Status 500 내부 서버 오류'같은 메시지가 출력된다.  
+그런데 핸들러 예외 리졸버가 등록되어 있다면 DispatcherServlet은 먼저 핸들러 예외 리졸버에게 해당 예외를 처리할 수 있는지 확인한다. 만약 예외를 처리해주는  
+핸들러 예외 리졸버가 있으면 예외는 DispatcherServlet 밖으로 던지지 않고 해당 핸들러 예외 리졸버가 처리한다.
+
+```java
+public interface HandlerExceptionResolver {
+    ModelAndView resolveException(HttpServletRequest request, HttpServletResponse response, 
+            bject Handler, Exception ex);
+}
+```
+
+메소드의 리턴 타입은 ModelAndView다. 예외에 따라서 사용할 뷰와 그 안에 들어갈 내용을 담은 모델을 돌려주도록 되어 있다. 만약 처리 불가능한 예외라면 null을  
+리턴한다. 스프링은 총 네 개의 HandlerExceptionResolver 구현 전략을 제공하고 있다. 그중 세 개는 디폴트로 등록되도록 설정되어 있다.
+
+#### AnnotationMethodHandlerExceptionResolver
+예외가 발생한 컨트롤러 내의 메소드 중에서 @ExceptionHandler 애노테이션이 붙은 메소드를 찾아 예외처리를 맡겨주는 핸들러 예외 리졸버다.  
+@ExceptionHandler가 붙은 메소드는 이 메소드를 실행하는 중에 예외가 발생하면 호출된다.
+
+```java
+@Controller
+public class HelloCon {
+    @ExceptionHandler(DataAccessException.class)
+   public ModelAndView dataAccessExceptionHandler(DataAccessExceptione ex) {
+        return new ModelAndView("dataexception").addObject("msg", ex.getMessage());
+    }
+}
+```
+
+#### ResponseStatusExceptionResolver
+두 번재 디폴트 핸들러 예외 전략은 예외를 특정 HTTP 응답 상태 코드로 전환해주는 것이다. 특정 예외가 발생했을 때 단순한 HTTP 500 에러 대신 의미 있는 HTTP 응답  
+상태를 돌려주는 방법이다. 예외 클래스에 @ResponseStatus를 붙이고, HttpStatus에 정의되어 있는 Http응답 상태 값을 value 엘리먼트에 저장한다.
+
+```java
+@ResponseStatus(value=HttpStatus.SERVICE_UNAVAILABLE, reson="서비스 일시 중지")
+public class NotInServiceException extends RuntimeException{
+    
+}
+```
+
+이 방법의 단점은 직점 @ReponseStatus를 붙여줄 수 있는 예외 클래스를 만들어 사용해야 된다는 것이다. 따라서 기존에 정의된 예외 클래스에는 바로 적용할 수 없다.  
+만약 @ResponseStatus를 직접 부여할 수 없는 기존의 예외가 발생했을 때 HTTP 응답 상태를 지정해주려면 @ExceptionHandler 방식의 핸들러 메소드를 사용하면  
+된다. 기존의 예외를 처리하는 @ExceptionHandler 메소드를 만들고 리턴 타입은 void로 해둔다. 그리고 HttpServletResponse를 파라미터로 전달 받아서  
+setStatus() 메소드를 이용해 응답 상태와 에러 메시지 등을 설정해주면 된다.
+
+#### DefaultHandlerExceptionResolver
+디폴트로 등록되는 것 중에서 위의 두 가지 예외 리졸버에서 처리하지 못한 예외를 다루는 마지막 핸들러 예외 리졸버이다. 스프링에서 내부적으로 발생하는 주요 예외를  
+처리해주는 표준 예외 로직을 담고 있다. 컨트롤러 메소드를 찾을 수 없는 경우는 HTTP 404, 요청 파라미터를 파싱하다가 타입이 일치하지 않을 때는 HTTP 400 와 같이  
+응답을 돌려준다. 핸들러 예외 리졸버를 빈으로 등록해서 리폴트 리졸버가 자동으로 적용되지 않는 경우에는 이 리졸버를 함께 등록해야 한다.
+
+#### SimpleMappingResolver
+web.xml의 <error-page>와 비슷하게 예외를 처리할 뷰를 지정할 수 있게 해준다.
+
+
 
