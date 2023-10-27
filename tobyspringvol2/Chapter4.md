@@ -50,3 +50,82 @@ params와 비슷하게 '헤더이름 = 값'의 형식으로 사용한다.
 #### 타입 레벨 단독 매핑
 핸들러 매핑은 원래 핸들러 오브젝트를 결정하는 전략이다. 클래스 레벨의 URL 패턴이 /*로 끝나는 경우에는 메소드 레벨의 URL 패턴으로 메소드 이름이 사용되게 할 수 있다.
 
+
+## 4.2 @Controller
+DefaultAnnotationHandlerMapping은 사용자 요청을 @ReqeustMapping 정보를 활용해서 컨트롤러 빈의 메소드에 매핑해준다. 그리고  
+AnnotationMethodHandlerAdapter는 매핑된 메소드를 실제로 호출하는 역할을 담당한다. 다른 핸들러 어댑터들은 컨트롤러가 구현하고 있는 인터페이스의 실행 메소드를  
+알고 있기 때문에 이를 이용해 간단히 메소드를 호출할 수 있었다. 하지만 @MVC의 컨트롤러는 특정 인터페이스를 구현하지 않는다. 그렇다면 어떻게 이런 메소드를 컨트롤러  
+메소드로 사용할 수 있는 것일까?  
+ Controller은 DispatcherServlet과 핸들러 어댑터의 경우와 동일하게 HttpServletRequest, HttpServletResponse를 전달받고 ModelAndView 타입을  
+리턴한다. 따라서 Controller 타입의 컨트롤러를 담당한느 핸들러 어댑터가 해주는 일은 거의 없다. 
+3장에서 만든 SimpleController의 경우 HttpServlet을 숨기고 parameter를 전달해서 요청을 처리했다. 하지만 어떤 경우는 쿠키나 헤더 정보를 참고해야하기 때문에  
+HttpServlet 관련 데이터가 필요하다.  
+@Controller를 사용하면 유연성과 편의성을 살릴 수 있다.  
+@Controller에서는 컨트롤러 역할을 담당하는 메소드의 파라미터 개수와 타입, 리턴 타입 등을 자유롭게 결정할 수 있다.  
+@MVC와 @Controller 개발 방법은 스프링 역사상 가장 획기적인 변신이다. 기존 영역의 기술에도 지속적으로 새로운 기능을 추가해오기는 했지만, 이전에 사용하던 방식을  
+버리고 새로운 방식을 사용하도록 강하게 권장한 적은 없었다. 스프링은 1.x 시절부터 Controller 타입의 편리한 기반 컨트롤러를 제공해왔다. 하지만 스프링 3.0에서  
+이런 기반 컨트롤러는 AbstractController 정도를 제외하면 대부분 @Deprecated가 붙어 있다. 
+
+### 4.2.1 메소드 파라미터 종류
+
+#### HttpServletRequest, HttpServletResponse
+
+#### HttpSession
+HttpSession 오브젝트는 HttpServletRequest를 통해 가져올 수도 있지만, HTTP 세션만 필요한 경우라면 파라미터를 선언해 직점 받는 편이 낫다.
+
+#### WebRequest, NativeWebRequest
+HttpServletRequest의 요청정보를 대부분 그대로 갖고 있는 서블릿 API에 종속적이지 않은 오브젝트 타입이다.
+
+#### Locale
+
+#### InputStream, Reader
+HttpServletRequest의 getInputStream()을 통해서 받을 수 있는 콘텐트 스트림 또는 Reader 타입 오브젝트를 받을 수 있다.
+
+#### OutputStream, Writer
+HttpServletResponse의 getOutStream()을 통해서 받을 수 있는 콘텐트 스트림 또는 Writer 타입 오브젝트를 받을 수 있다.
+
+#### @PathVariable
+URL에 {}로 들어가는 패스 변수를 받는다.
+
+#### @RequestParam
+단일 HTTP 요청 파라미터를 메소드 파라미터에 넣어주는 애노테이션이다. @RequestParam에 파라미터 이름을 지정하지 않고 Map<String, String> 타입으로 선언하면  
+모든 요청 파라미터를 담은 맵으로 받을 수 있다.  
+파라미터를 필수가 아니라 선택적으로 제공하게 하려면 required=false로 지정해주면 되고 defaultValue=1 로 기본 값을 지정할 수도 있다.
+
+#### @CookieValue
+
+#### @RequestHeader
+요청 해더 정보를 메소드 파라미터에 넣어준다.
+
+#### Map, Model, ModelMap
+모델정보를 담는 데 사용할 수 있는 오브젝트가 전달된다.
+
+#### @ModelAttribute
+컨트롤러가 사용하는 모델 중에는 클라이언트로부터 받는 HTTP 요청정보를 이용해 생성되는 것이 있다. 이렇게 클라이언트로부터 컨트롤러가 받는 요청정보 중에서 하나 이상의  
+값을 가진 오브젝트 형태로 만들 수 있는 구조적인 정보를 @ModelAttribute 모델이라고 부른다.  
+도메인 오브젝트나 DTO의 프로퍼티에 요청 파라미터를 바인딩해서 한 번에 받으면 @ModelAttribute라고 볼 수 있다.  
+추가적인 기능은 컨트롤러가 리턴하는 모델에 파라미터로 전달한 오브젝트를 자동으로 추가해준다.
+
+#### Error, BindingResult
+@ModelAttribute가 붙은 파라미터를 처리할 때는 @RequestParam과 달리 검증 작업이 추가적으로 진행된다. @ModelAttribute는 타입 변환 문제를 바로 처리하지  
+않는다. @ModelAttribute 입장에서는 파라미터 타입이 일치하지 않는다는 건 검증 작업의 한 가지 결과일 뿐이지, 예상치 못한 예외 상황이 아니라는 뜻이다.  
+이 때문에 @ModelAttribute를 통해 폼의 정보를 전달받을 때는 Errors 또는 BindingResult 타입의 파라미터를 같이 사용해야 한다. 이 두가지 오브젝트에는  
+파라미터를 바인딩하다가 발생한 변환 오류와 모델 검증기를 통해 검증하는 중에 발견한 오류가 저장된다. 이 두 가지 타입의 파라미터는 반드시 @ModelAttribute  
+파라미터 뒤에 나와야 한다.
+
+#### SessionStatus
+모델 오브젝트를 세션에 저장했다가 다음 페이지에서 다시 활용하게 해주는 기능이 있는데 이 기능을 사용하다가 더 이상 세션 내에 모델 오브젝트를 저장할 필요가 없을 경우에  
+코드에서 직접 작업 완료 메소드를 호출해서 세션 안에 저장된 오브젝트를 제거해줘야한다.
+
+#### @RequestBody
+HTTP 요청의 본문 부분이 그대로 전달된다. AnnotationMethodHandlerAdapter에는 HttpMessageConverter 타입의 메시지 변환기가 여러 개 등록되어 있다.  
+@RequestBody가 붙은 파라미터가 있으면 HTTP 요청의 미디어 타입과 파라미터 타입을 먼저 확인한다. 메시지 변환기 중에서 해당 미디어 타입과 파라미터 타입을 처리할  
+수 있는 것이 있다면, HTTP 요청의 본문 부분을 통째로 변환해서 지정된 메소드 파라미터로 전달해준다. Json 메시지라면 MappingJacksonHttpMessageConverter를  
+사용할 수 있다. @RequestBody는 보통 @ResponseBody와 함께 사용된다.
+
+#### @Value
+빈의 값 주입에서 사용하던 @Value 애노테이션도 컨트롤러 메소드 파라미터에 부여할 수 있다. 주로 시스템 프로퍼티나 다른 빈의 프로퍼티 값, 또는 좀 더 복잡한 SpEL을  
+이용해 클래스의 상수를 읽어오거나 특정 메소드를 호출한 결과 값, 조건식 등을 넣을 수 있다.
+
+#### @Valid
+JSR-303의 빈 검증기를 이용해서 모델 오브젝트를 검증하도록 지시하는 지시자이다. 보통 @ModelAttribute와 함께 사용한다.
