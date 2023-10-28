@@ -129,3 +129,63 @@ HTTP 요청의 본문 부분이 그대로 전달된다. AnnotationMethodHandlerA
 
 #### @Valid
 JSR-303의 빈 검증기를 이용해서 모델 오브젝트를 검증하도록 지시하는 지시자이다. 보통 @ModelAttribute와 함께 사용한다.
+
+### 4.2.2 리턴 타입의 종류
+컨트롤러가 DispatcherServlet에게 돌려줘야하는 정보는 모델과 뷰다. 드물지만 ModelAndView는 무시하고 HttpServletResponse에 직접 결과를 넣어 리턴하는  
+경우도 있다. 
+
+#### 자동 추가 모델 오브젝트와 자동생성 뷰 이름
+- @ModelAttribute 모델 오브젝트 또는 커맨드 오브젝트  
+메소드 파라미터 중에서 @ModelAttribute를 붙인 모델 오브젝트나 단순 타입이 아니라서 커맨드 오브젝트로 처리되는 오브젝트라면 자동으로 컨트롤러가 리턴하는 모델에  
+  추가된다. 
+  
+- Map, Model ModelMap 파라미터  
+컨트롤러 메소드에 Map, MOdel, ModelMap 타입의 파라미터를 사용하면 미리 생성된 모델 맵 오브젝트를 전달받아서 오브젝트를 추가할 수 있다.  
+  
+- @ModelAttribute 메소드  
+@ModelAttribute는 컨트롤러 클래스의 일반 메소드에도 부여할 수 있다. 뷰에서 참고정보로 사용되는 모델 오브젝트를 생성하는 메소드를 지정하기 위해 사용된다.
+@ModelAttribute가 붙은 메소드는 컨트롤러 클래스 안에 정의하지만 컨트롤러 기능을 담당하지 않는다. 클래스 내의 모든 컨트롤러의 모델에 자동 추가된다.
+  
+- BindingResult  
+@ModelAttribute 파라미터와 함께 사용하는 BindingResult 타입의 오브젝트도 모델에 자동으로 추가된다. 
+  
+컨트롤러에서 어떤 식으로든 뷰 정보를 제공해주지 않는 경우에는 RequestToViewNameTranslator 전략에 의해 자동으로 뷰 이름이 만들어진다. 
+
+#### ModelAndView
+@Controller에서는 ModelAndView를 이용하는 것보다 편리한 방법이 많아서 자주 사용되지는 않는다. 
+
+#### String 
+메소드의 리턴 타입이 스트링이면 이 리턴 값은 뷰 이름으로 사용된다. 모델정보는 모델 맵 파라미터로 가져와 추가해주는 방법을 사용해야 한다.
+
+#### void
+return 타입이 void인 경우 RequestToViewNameResolver 전략을 통해 자동생성되는 뷰 이름이 사용된다.
+
+#### 모델 오브젝트 
+뷰 이름은 RequestToViewNameResolver로 자동샌성하는 것을 사용하고 코드를 이용해 모델에 추가할 오브젝트가 하나뿐이라면 Model 파라미터를 받아서 저장하는 대신  
+모델 오브젝트를 바로 리턴해도 된다.
+
+#### Map/Model/ModelMap
+메소드의 코드에서 Map이나 Model, ModelMap 타입의 오브젝트를 직접 만들어서 리턴해주면 이 오브젝트는 모델로 사용된다.
+
+#### View
+String으로 view 이름을 return하는 것 대신에 직접 뷰 객체를 리턴할 수도 있다.
+
+#### @ResponseBody
+@ResponseBody가 메소드 레벨에 부여되면 메소드가 리턴하는 오브젝트는 뷰를 통해 결과를 만들어내는 모델로 사용되는 대신, 메시지 컨버터를 통해 바로 HTTP 응답의  
+메시지 본문으로 전환된다.
+
+### 4.2.3 @SessionAttribute와 SessionStatus
+HTTP 요청에 의해 동작하는 서블릿은 기본적으로 상태를 유지하지 않지만 애플리케이션은 기본적으로 상태를 유지할 필요가 있다. 
+
+#### @SessionAttribute
+클래스 레벨에 @SessionAttribute("user") 와 같은 어노테이션을 달아줄 수 있다.  
+@SessionAttribute가 해주는 기능은 두가지이다. 첫째, 컨트롤러 메소드가 생성되는 모델정보 중에서 @SessionAttributes에 지정한 이름과 동일한 것이 있다면  
+이를 세션에 저장해준다. 두번째는 @ModelAttribute가 지정된 파라미터가 있을 때 이 파라미터에 전달해줄 오브젝트를 세션에서 가져오는 것이다. 원래 파라미터에  
+@ModelAttribute가 있으면 해당 타입의 새 오브젝트를 생성한 후에 요청 파라미터 값을 프로퍼티에 바인딩해준다. 그런데 @SessionAttributes에 선언된 이름과  
+@ModelAttribute의 모델 이름이 동일하다면 그때는 먼저 세션에 같은 이름의 오브젝트가 존재하는지 확인한다. 만약 존재한다면 모델 오브젝트를 새로 만드는 대신 세션에  
+있는 오브젝트를 가져와 @ModelAttribute 파라미터로 전달해줄 오브젝트로 사용한다.
+
+#### SessionStatus
+@SessionAttribute를 사용할 때는 더 이상 필요없는 세션 애트리뷰트를 코드로 제거해줘야 한다는 점을 잊지 말자. @SessionAttributes를 사용할 때는  
+SessionStatus를 이용해 세션을 정리해주는 코드가 항상 같이 따라다녀야 한다는 사실을 기억해두자.
+
