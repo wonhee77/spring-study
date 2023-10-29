@@ -189,3 +189,54 @@ HTTP 요청에 의해 동작하는 서블릿은 기본적으로 상태를 유지
 @SessionAttribute를 사용할 때는 더 이상 필요없는 세션 애트리뷰트를 코드로 제거해줘야 한다는 점을 잊지 말자. @SessionAttributes를 사용할 때는  
 SessionStatus를 이용해 세션을 정리해주는 코드가 항상 같이 따라다녀야 한다는 사실을 기억해두자.
 
+
+## 4.3 모델 바인딩과 검증
+컨트롤러 메소드에 @ModelAttribute가 지정된 파라미터를 @Controller 메소드에 추가하면 크게 세 가지 작업이 자동으로 진행된다.  
+첫째, 파라미터 타입의 오브젝트를 만든다. 이를 위해 디폴트 생성자가 필요하다.  
+두 전재 작업은 준비될 모델 오브젝트의 프로퍼티에 웹 파라미터를 바인딩해주는 것이다. HTTP를 통해 전달되는 파라미터는 기본적으로 문자열로 되어 있다. 스프링에 준비되어  
+있는 기본 프로퍼티 에디터를 이용해서 HTTP 파라미터 값을 모델의 프로퍼티 타입에 맞게 전환한다. 전환이 불가능한 경우라면 BindingResult 오브젝트 안에 바인딩  
+오류를 저장해서 컨트롤러로 넘겨주거나 예외를 발생시킨다.  
+세 번째 작업은 모델의 값을 검증하는 것이다. 바인딩 단계에서 타입에 대한 검증은 끝났지만 그 외의 검증할 내용이 있다면 적절한 검증기를 등록해서 모델의 내용을 검증할  
+수 있다.  
+스프링은 바인딩 과정에서 필요한 변환 작업을 위해 기본적으로 두 가지 종류의 API를 제공한다. 
+
+### 4.3.1 PropertyEditor
+스프링이 기본적으로 제공하는 바인딩용 타입 변환 APIsms PropertyEditor다. PropertyEditor는 스프링의 API가 아니라 자바빈 표준에 정의된 인터페이스다.
+
+### 4.3.5 모델의 일생
+모델은 MVC 아키텍처에서 정보를 담당하는 컴포넌트다. 
+
+#### HTTP 요청으로부터 컨트롤러 메소드까지
+- @ModelAttribute 메소드 파라미터  
+컨트롤러 메소드의 모델 파라미터와 @ModelAttribute로부터 모델 이름, 모델 타입 정보를 가져온다.
+  
+- @SessionAttribute 세션 저장 대상 모델 이름  
+모델 이름과 동일한 것이 있다면 HTTP 세션에 저장해준 데이터를 대신 가져와 사용한다.
+  
+- WebDataBinder에 등록된 프로퍼티 에디터, 컨버전 서비스  
+WebBindingInitializer나 @InitBinder 메소드를 통해서 등록된 변환 기능 오브젝트를 통해 HTTP 요청 파라미터를 메돌의 프로퍼티에 맞도록 변환해서 넣어준다.
+  
+- WebDataBinder에 등록된 검증기  
+모델 파라미터에 @Valid가 지정되어 있다면 WebBindingInitializer나 @InitBinder 메소드를 통해 등록된 검증기로 모델을 검증한다.
+  
+- ModelAndView의 모델 맵  
+모델 오브젝트는 컨트롤러 메스드가 실행되기 전에 임시 모델 맵에 저장된다. 이렇게 저장된 모델 오브젝트는 컨트롤러 메소드의 실행을 마친 뒤에 추가로 등록된 모델 오브젝트와  
+  함께 ModelAndView 모델 맵에 담겨 DispatcherServlet으로 전달된다.
+  
+- 컨트롤러 메소드와 BindingResult 파라미터 
+HTTP 요청을 담은 모델 오브젝트가 @ModelAttribute 파라미터로 전달되면서 컨트롤러 메소드가 실행된다. 메소드의 모델 파라미터 다음에 BindingResult 타입  
+  파라미터가 있다면 바인딩과 검증 작업 결과가 담긴 BindingResult 오브젝트가 제공된다. BindingResult는 ModelAndView의 모델 맵에도 자동으로 추가된다.
+  
+#### 컨트롤러 메소드로부터 뷰까지
+- ModelAndView의 모델 맵  
+컨트롤러 메소드의 실행을 마치고 최종적으로 DispatcherServlet이 전달받는 결과다.
+  
+- WebDataBinder에 기본적으로 등록된 MessageCodeResolver  
+WebDataBinder에 등록되어 있는 MessageCodeResolver는 바인딩 작업 또는 검증 작업에서 등록된 에러코드를 확장해서 메시지 코드 후보 목록을 만들어준다. 
+  
+- 빈으로 등록된 MessageSource와 LocaleResolver
+
+- @SessionAttribute 세션 저장 대상 모델 이름
+
+- 뷰의 EL과 스프링 태그 또는 매크로
+
