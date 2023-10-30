@@ -240,3 +240,37 @@ WebDataBinder에 등록되어 있는 MessageCodeResolver는 바인딩 작업 또
 
 - 뷰의 EL과 스프링 태그 또는 매크로
 
+
+## 4.5 메시지 컨버터와 AJAX
+메시지 컨버터는 XML이나 JSON을 이용한 AJAX 기능이나 웹 서비스를 개발할 때 사용할 수 있다.
+
+### 4.5.1 메시지 컨버터의 종류
+사용할 메시지 컨버터는 AnnotationMethodHandlerAdapter를 통해 등록한다. AnnotationMethodHandlerAdapter에 등록되는 디폴트 메시지 컨버터는 다음과  
+같다.
+
+- ByteArrayHttpMessageConverter  
+지원하는 오브젝트 타입은 byte[]다. 미디어 타입은 모든 것을 다 지원한다. 따라서 @RequestBody로 전달 받을 때는 모든 종류의 HTTP 요청 메시지 본문을 byte  
+  배열로 가져올 수 있다. 반대로 @ResponseBody로 보낼 때는 콘텐트 타입이 application/octet-stream으로 설정된다.
+  
+
+- StringHttpMessageConverter  
+스트링 타입 오브젝트를 지원한다. 
+  
+
+- FormHttpMessageConverter
+
+
+- SourceHttpMessageConverter  
+
+기본적으로 네 가지 종류의 HttpMessageConverter가 디폴트로 등록되지만 이보다는 디폴트로 등록되지 않은 다음 네가지가 실제로 더 유용하다. 이 중에서 필요한 메시지  
+컨버터가 있다면 직접 AnnotationMethodHandlerAdapter 빈의 messageConverters 프로퍼티에 등록하고 사용해야 한다.
+
+- Jaxb2RootElementHttpMessageConverter
+
+
+- MarshallingHttpMessageConverter  
+XML 문서와 자바 오브젝트 사이의 변환을 지원해주는 컨버터다.
+  
+
+- MappingJacksonHttpMessageConverter  
+Jackson ObjectMapper를 이용해서 자바 오브젝트와 JSON 문서를 자동변환해주는 메시지 컨버터다.
